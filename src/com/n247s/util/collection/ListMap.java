@@ -1393,7 +1393,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		this.entrySet.readObject(s);
 	}
 
-	static class ListMapEntry<K, V> implements Entry<K, V>
+	public static class ListMapEntry<K, V> implements Entry<K, V>
 	{
 
 		K	key;
@@ -1539,7 +1539,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	final class ListMapKeySet extends AbstractSet<K>
+	public final class ListMapKeySet extends AbstractSet<K>
 	{
 
 		/**
@@ -1770,7 +1770,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	final class ListMapValueSet extends AbstractSet<V>
+	public final class ListMapValueSet extends AbstractSet<V>
 	{
 
 		/**
@@ -1930,7 +1930,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	final class ListMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
+	public final class ListMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
 	{
 
 		List<ListMapEntry<K, V>>	entryList;
@@ -2400,7 +2400,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	abstract class ListMapIterator
+	public abstract class ListMapIterator
 	{
 
 		private int					expectedModCount;
@@ -2504,7 +2504,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 	
-	final class ListMapKeyIterator extends ListMapIterator implements Iterator<K>
+	public final class ListMapKeyIterator extends ListMapIterator implements Iterator<K>
 	{
 		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 		public ListMapKeyIterator(int startIndex) 		{ super(startIndex); }
@@ -2515,7 +2515,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public K current()								{ return super.current.getKey(); }
 	}
 	
-	final class ListMapValueIterator extends ListMapIterator implements Iterator<V>
+	public final class ListMapValueIterator extends ListMapIterator implements Iterator<V>
 	{
 		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 		public ListMapValueIterator(int startIndex) 	{ super(startIndex); }
@@ -2526,7 +2526,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public V current()								{ return super.current.getValue(); }
 	}
 	
-	final class ListMapEntryIterator extends ListMapIterator implements Iterator<ListMapEntry<K, V>>
+	public final class ListMapEntryIterator extends ListMapIterator implements Iterator<ListMapEntry<K, V>>
 	{
 		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 		public ListMapEntryIterator(int startIndex) 	{ super(startIndex); }
@@ -2537,7 +2537,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public ListMapEntry<K, V> current()				{ return super.current; }
 	}
 	
-	static abstract class ListMapSpliterator<E>
+	public static abstract class ListMapSpliterator<E>
 	{
 
 		protected final ListMap<?, ?>	listMap;
@@ -2667,7 +2667,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	static final class ListMapKeySpliterator<K> extends ListMapSpliterator<K> implements Spliterator<K>
+	public static final class ListMapKeySpliterator<K> extends ListMapSpliterator<K> implements Spliterator<K>
 	{
 
 		public ListMapKeySpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
@@ -2689,7 +2689,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	static final class ListMapValueSpliterator<V> extends ListMapSpliterator<V> implements Spliterator<V>
+	public static final class ListMapValueSpliterator<V> extends ListMapSpliterator<V> implements Spliterator<V>
 	{
 
 		public ListMapValueSpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
@@ -2711,7 +2711,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	static final class ListMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends ListMapSpliterator<E> implements Spliterator<E>
+	public static final class ListMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends ListMapSpliterator<E> implements Spliterator<E>
 	{
 
 		public ListMapEntrySpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
@@ -2733,7 +2733,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 	}
 
-	static class SubMap<K, V> implements Map<K, V>, Serializable
+	public static class SubMap<K, V> implements Map<K, V>, Serializable
 	{
 
 		private static final long	serialVersionUID	= 2220692614896016222L;
@@ -4095,7 +4095,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			throw new ConcurrentModificationException();
 		}
 
-		final class SubMapKeySet extends AbstractSet<K>
+		public final class SubMapKeySet extends AbstractSet<K>
 		{
 
 			private SubMap<K, V>	subMap;
@@ -4340,7 +4340,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		final class SubMapValueSet extends AbstractSet<V>
+		public final class SubMapValueSet extends AbstractSet<V>
 		{
 
 			private SubMap<K, V>	subMap;
@@ -4508,7 +4508,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		final class SubMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
+		public final class SubMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
 		{
 
 			SubMap<K, V>	subMap;
@@ -4938,7 +4938,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		abstract class SubMapIterator
+		public abstract class SubMapIterator
 		{
 
 			private SubMap<K, V>		subMap;
@@ -5045,7 +5045,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		final class SubMapKeyIterator extends SubMapIterator implements Iterator<K>
+		public final class SubMapKeyIterator extends SubMapIterator implements Iterator<K>
 		{
 			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 			public SubMapKeyIterator(int startIndex, SubMap<K, V> subMap) 		{ super(startIndex, subMap); }
@@ -5056,7 +5056,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			public K current()													{ return super.current.getKey(); }
 		}
 		
-		final class SubMapValueIterator extends SubMapIterator implements Iterator<V>
+		public final class SubMapValueIterator extends SubMapIterator implements Iterator<V>
 		{
 			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 			public SubMapValueIterator(int startIndex, SubMap<K, V> subMap) 	{ super(startIndex, subMap); }
@@ -5067,7 +5067,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			public V current()													{ return super.current.getValue(); }
 		}
 		
-		final class SubMapEntryIterator extends SubMapIterator implements Iterator<ListMapEntry<K, V>>
+		public final class SubMapEntryIterator extends SubMapIterator implements Iterator<ListMapEntry<K, V>>
 		{
 			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
 			public SubMapEntryIterator(int startIndex, SubMap<K, V> subMap) 	{ super(startIndex, subMap); }
@@ -5078,7 +5078,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			public ListMapEntry<K, V> current()									{ return super.current; }
 		}
 		
-		static abstract class SubMapSpliterator<E>
+		public static abstract class SubMapSpliterator<E>
 		{
 	        protected final SubMap<?, ?> 	subMap;
 	        private int 					index; // current index, modified on advance/split
@@ -5207,7 +5207,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		static class SubMapKeySpliterator<K> extends SubMapSpliterator<K> implements Spliterator<K>
+		public static class SubMapKeySpliterator<K> extends SubMapSpliterator<K> implements Spliterator<K>
 		{
 
 			public SubMapKeySpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
@@ -5229,7 +5229,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		static class SubMapValueSpliterator<V> extends SubMapSpliterator<V> implements Spliterator<V>
+		public static class SubMapValueSpliterator<V> extends SubMapSpliterator<V> implements Spliterator<V>
 		{
 
 			public SubMapValueSpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
@@ -5251,7 +5251,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 		}
 
-		static class SubMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends SubMapSpliterator<E> implements Spliterator<E>
+		public static class SubMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends SubMapSpliterator<E> implements Spliterator<E>
 		{
 
 			public SubMapEntrySpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
