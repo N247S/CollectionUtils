@@ -1,0 +1,12 @@
+ChangeLog - ListMap
+---------------
+
+Version 0.0
+- Created first unofficial version of ListMap
+
+Version 1.0
+
+- Reduced the use of memory by more than half by reducing from 3 lists to a single list of entries.
+- Fixed SubMap entry size update.
+- Fixed Iterator initialization fail.(fixed startIndex offset)
+- Fixed SubMap method loops (fixed wrong key index initialization)
