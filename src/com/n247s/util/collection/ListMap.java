@@ -32,9 +32,6 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 
-import javafx.util.Pair;
-
-
 /**
  * This {@link Map} acts like an regular {@link ArrayList} type, but with the
  * difference that it holds key and values instead of single entries. This Map
@@ -51,7 +48,7 @@ import javafx.util.Pair;
  * be updated once the ListMap changes and visa versa.<br>
  * <br>
  * This map is far from efficient, so if someone is able to accomplish the same
- * effect with a {@link List} of {@link Pair Pairs}. Its way better to do it as
+ * effect with a {@link List} of Pairs. Its way better to do it as
  * such, since there is no advanced search algorithms involved. What this Map
  * does offer in return is advanced key/value control. Since Keys aren't the
  * most important object of the Map it is possible to replace keys just like
