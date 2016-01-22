@@ -170,8 +170,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	{
 		if(index < 0 || index > this.entrySet.size())
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
-
-		map.entrySet().forEach(E -> put(index, E.getKey(), E.getValue()));
+		
+		ArrayList<Entry<? extends K, ? extends V>> l = new ArrayList<Entry<? extends K, ? extends V>>(map.entrySet());
+		Collections.reverse(l);
+		
+		for(Entry<? extends K, ? extends V> entry : l)
+			this.put(index, entry.getKey(), entry.getValue());
 	}
 
 	/**
@@ -2916,7 +2920,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(index < 0 || index > this.size())
 				throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.size()));
 
-			map.entrySet().forEach(E -> put(index, E.getKey(), E.getValue()));
+			ArrayList<Entry<? extends K, ? extends V>> l = new ArrayList<Entry<? extends K, ? extends V>>(map.entrySet());
+			Collections.reverse(l);
+
+			for(Entry<? extends K, ? extends V> entry : l)
+				this.put(index, entry.getKey(), entry.getValue());
 		}
 
 		/**
