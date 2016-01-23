@@ -1468,6 +1468,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *         entry
 		 * @see #hashCode
 		 */
+		@Override
 		public boolean equals(Object o)
 		{
 			if(!(o instanceof Map.Entry<?, ?>))
@@ -1520,6 +1521,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @return the hash code value for this map entry
 		 * @see #equals
 		 */
+		@Override
 		public int hashCode()
 		{
 			return (key == null ? 0 : key.hashCode()) ^
@@ -1534,6 +1536,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *
 		 * @return a String representation of this map entry
 		 */
+		@Override
 		public String toString()
 		{
 			return key + "=" + value;
@@ -1934,11 +1937,27 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public final class ListMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
 	{
 
-		List<ListMapEntry<K, V>>	entryList;
+		protected List<ListMapEntry<K, V>>	entryList;
 
+		/** Default constructor */
 		public ListMapEntrySet()
 		{
 			this.entryList = new ArrayList<ListMapEntry<K, V>>();
+		}
+		
+		/**
+		 * This constructor is added to support custom implementation of a
+		 * backing list. An example use of this is the javafx' ObservableList
+		 * implementation. This enables the use of this map in combination with
+		 * TreeViews and TableViews.
+		 * 
+		 * @param entryList
+		 *            The backing Entry list that should be used for this
+		 *            ListMap.
+		 */
+		public ListMapEntrySet(List<ListMapEntry<K, V>> entryList)
+		{
+			this.entryList = entryList;
 		}
 
 		/**
