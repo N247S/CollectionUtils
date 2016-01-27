@@ -2478,7 +2478,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				this.previous = this.current;
 				this.current = this.next;
-				if(this.index < ListMap.this.entrySet.size() - 1)
+				if(this.index < ListMap.this.entrySet.size() - 2)
 					this.next = ListMap.this.entrySet.entryList.get(++this.index + 1);
 				else
 				{
@@ -5023,7 +5023,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				{
 					this.previous = this.current;
 					this.current = this.next;
-					if(this.index < this.subMap.size() - 1)
+					if(this.index < this.subMap.size() - 2)
 						this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + ++this.index + 1);
 					else
 					{
