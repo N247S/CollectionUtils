@@ -835,7 +835,23 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 		return null;
 	}
+	
+	/**
+	 * Returns the key of the entry at the given index.
+	 * 
+	 * @param index
+	 * @return The key of the entry at the given index.
+	 * @throws IndexOutOfBoundsException
+	 *             if index < 0 || index > {@link #size()}
+	 */
+	public K getKey(int index)
+	{
+		if(index < 0 || index > this.entrySet.size())
+			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
 
+		return this.entrySet.entryList.get(index).getKey();
+	}
+	
 	/** Returns true if this {@link ListMap} contains the given key */
 	@Override
 	public boolean containsKey(Object key)
@@ -3643,6 +3659,22 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 					return entry.getValue();
 			}
 			throw new ConcurrentModificationException();
+		}
+		
+		/**
+		 * Returns the key of the entry at the given index.
+		 * 
+		 * @param index
+		 * @return The key of the entry at the given index.
+		 * @throws IndexOutOfBoundsException
+		 *             if index < 0 || index > {@link #size()}
+		 */
+		public K getKey(int index)
+		{
+			if(index < 0 || index > this.size())
+				throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.size()));
+
+			return this.listMap.entrySet.entryList.get((this.fromStart ? 0 : this.fromEntry) + index).getKey();
 		}
 
 		@Override
