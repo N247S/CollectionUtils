@@ -84,10 +84,23 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		this.subMapInstances = new ArrayList<SubMap<K, V>>();
 		this.modCount = 0;
 	}
+	
+	public ListMap(List<ListMapEntry<K, V>> backingList)
+	{
+		this();
+		this.entrySet = new ListMapEntrySet(backingList);
+	}
 
 	public ListMap(Map<? extends K, ? extends V> map)
 	{
 		this();
+		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+	}
+	
+	public ListMap(Map<? extends K, ? extends V> map, List<ListMapEntry<K, V>> backingList)
+	{
+		this();
+		this.entrySet = new ListMapEntrySet(backingList);
 		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 	}
 
@@ -970,6 +983,18 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public Set<java.util.Map.Entry<K, V>> entrySet()
 	{
 		return null;
+	}
+	
+	/**
+	 * This will return the backing list of this ListMap. Although that changes
+	 * to the list are reflected in this map and visa versa, though its highly
+	 * recommended not to modify the list since it can break the map!
+	 * 
+	 * @return The backing list of this map
+	 */
+	public List<ListMapEntry<K, V>> getBackingList()
+	{
+		return this.entrySet.entryList;
 	}
 
 	/**
