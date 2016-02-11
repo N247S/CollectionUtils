@@ -75,32 +75,32 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	private transient List<SubMap<K, V>>	subMapInstances;
 
 	private transient int					modCount;
-
-	public ListMap()
+	
+	public ListMap(List<ListMapEntry<K, V>> backingList)
 	{
-		this.entrySet = new ListMapEntrySet();
+		if(backingList != null)
+			this.entrySet = new ListMapEntrySet(backingList);
+		else this.entrySet = new ListMapEntrySet();
 		this.keySet = new ListMapKeySet();
 		this.valueSet = new ListMapValueSet();
 		this.subMapInstances = new ArrayList<SubMap<K, V>>();
 		this.modCount = 0;
 	}
 	
-	public ListMap(List<ListMapEntry<K, V>> backingList)
+	public ListMap()
 	{
-		this();
-		this.entrySet = new ListMapEntrySet(backingList);
-	}
-
-	public ListMap(Map<? extends K, ? extends V> map)
-	{
-		this();
-		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+		this((List<ListMapEntry<K, V>>)null);
 	}
 	
 	public ListMap(Map<? extends K, ? extends V> map, List<ListMapEntry<K, V>> backingList)
 	{
-		this();
-		this.entrySet = new ListMapEntrySet(backingList);
+		this(backingList);
+		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+	}
+
+	public ListMap(Map<? extends K, ? extends V> map)
+	{
+		this((List<ListMapEntry<K, V>>)null);
 		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 	}
 
