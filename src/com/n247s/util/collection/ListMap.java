@@ -95,13 +95,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public ListMap(Map<? extends K, ? extends V> map, List<ListMapEntry<K, V>> backingList)
 	{
 		this(backingList);
-		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+		if(map != null)
+			map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 	}
 
 	public ListMap(Map<? extends K, ? extends V> map)
 	{
-		this((List<ListMapEntry<K, V>>)null);
-		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+		this(map, null);
 	}
 
 	/** Adds a new entry at the end of this {@link ListMap} */
@@ -2608,7 +2608,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		private int						expectedModCount;	// initialized when fence set
 
 		/** Create new spliterator covering the given range */
-		public ListMapSpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
+		public ListMapSpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
 			if(listMap != null && (highBoundery < 0 ? listMap.size() : highBoundery) < (lowBoundery < 0 ? 0 : lowBoundery))
 				throw new IllegalArgumentException("HigherBoundery < lowerBoundery!");
@@ -2646,7 +2646,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			this.initBounds();
 			int mid = (this.lowBoundery + this.highBoundery) >>> 1;
-			return (this.lowBoundery >= mid) ? null : getNewSpilterator(this.listMap, this.index, this.lowBoundery, (this.index = mid));
+			if(this.lowBoundery >= mid)
+				return null;
+			Spliterator<E> split = getNewSpilterator(this.listMap, this.index < mid ? this.index : mid, this.lowBoundery,  mid);
+			if(this.index < mid)
+				this.index = mid;
+			this.lowBoundery = mid;
+			return split;
 		}
 
 		public boolean tryAdvance(Consumer<? super E> action)
@@ -2654,10 +2660,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(action == null)
 				throw new NullPointerException();
 			this.initBounds();
-			if(this.highBoundery > 0 ? this.index < this.listMap.size() - 1 : this.index < this.highBoundery - 1)
+			if(this.highBoundery < 0 ? this.index < this.listMap.size() : this.index < this.highBoundery)
 			{
-				++this.index;
-				E object = this.get(this.index);
+				E object = this.get(this.index++);
 				action.accept(object);
 				if(this.listMap.modCount != this.expectedModCount)
 					throw new ConcurrentModificationException();
@@ -2671,10 +2676,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(action == null)
 				throw new NullPointerException();
 			this.initBounds();
-			if(this.lowBoundery < 0 ? this.index > 1 : this.index >= this.lowBoundery)
+			if(this.lowBoundery < 0 ? this.index > -1 : this.index >= this.lowBoundery)
 			{
-				--this.index;
-				E object = this.get(this.index);
+				E object = this.get(this.index--);
 				action.accept(object);
 				if(this.listMap.modCount != this.expectedModCount)
 					throw new ConcurrentModificationException();
@@ -2731,15 +2735,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public static final class ListMapKeySpliterator<K> extends ListMapSpliterator<K> implements Spliterator<K>
 	{
 
-		public ListMapKeySpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
+		public ListMapKeySpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			super(listMap, startIndex, highBoundery, lowBoundery);
+			super(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@Override
 		protected Spliterator<K> getNewSpilterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			return new ListMapKeySpliterator<K>(listMap, startIndex, highBoundery, lowBoundery);
+			return new ListMapKeySpliterator<K>(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -2753,15 +2757,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public static final class ListMapValueSpliterator<V> extends ListMapSpliterator<V> implements Spliterator<V>
 	{
 
-		public ListMapValueSpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
+		public ListMapValueSpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			super(listMap, startIndex, highBoundery, lowBoundery);
+			super(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@Override
 		protected Spliterator<V> getNewSpilterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			return new ListMapValueSpliterator<V>(listMap, startIndex, highBoundery, lowBoundery);
+			return new ListMapValueSpliterator<V>(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -2775,15 +2779,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public static final class ListMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends ListMapSpliterator<E> implements Spliterator<E>
 	{
 
-		public ListMapEntrySpliterator(ListMap<?, ?> listMap, int startIndex, int highBoundery, int lowBoundery)
+		public ListMapEntrySpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			super(listMap, startIndex, highBoundery, lowBoundery);
+			super(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@Override
 		protected Spliterator<E> getNewSpilterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
 		{
-			return new ListMapEntrySpliterator<E>(listMap, startIndex, highBoundery, lowBoundery);
+			return new ListMapEntrySpliterator<E>(listMap, startIndex, lowBoundery, highBoundery);
 		}
 
 		@SuppressWarnings("unchecked")
@@ -5168,7 +5172,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	        private int 					expectedModCount; // initialized when fence set
 
 			/** Create new spliterator covering the given range */
-			public SubMapSpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
+			public SubMapSpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
 				if(subMap != null && (highBoundery < 0 ? subMap.size() : highBoundery) < (lowBoundery < 0 ? 0 : lowBoundery))
 					throw new IllegalArgumentException("HigherBoundery < lowerBoundery!");
@@ -5206,7 +5210,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				this.initBounds();
 				int mid = (this.lowBoundery + this.highBoundery) >>> 1;
-				return (this.lowBoundery >= mid) ? null : getNewSpilterator(this.subMap, this.index, this.lowBoundery, (this.index = mid));
+				Spliterator<E> split = (this.lowBoundery >= mid) ? null : getNewSpilterator(this.subMap, this.index < mid ? this.index : mid, this.lowBoundery, mid);
+				if(this.index < mid)
+					this.index = mid;
+				this.lowBoundery = mid;
+				return split;
 			}
 
 			public boolean tryAdvance(Consumer<? super E> action)
@@ -5214,10 +5222,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(action == null)
 					throw new NullPointerException();
 				this.initBounds();
-				if(this.highBoundery > 0 ? this.index < this.subMap.size() - 1 : this.index < this.highBoundery - 1)
+				if(this.highBoundery < 0 ? this.index < this.subMap.size() : this.index < this.highBoundery)
 				{
-					++this.index;
-					E object = this.get(this.index);
+					E object = this.get(this.index++);
 					action.accept(object);
 					if(this.subMap.listMap.modCount != this.expectedModCount)
 						throw new ConcurrentModificationException();
@@ -5231,10 +5238,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(action == null)
 					throw new NullPointerException();
 				this.initBounds();
-				if(this.lowBoundery < 0 ? this.index > 1 : this.index >= this.lowBoundery)
+				if(this.lowBoundery < 0 ? this.index > -1 : this.index >= this.lowBoundery)
 				{
-					--this.index;
-					E object = this.get(this.index);
+					E object = this.get(this.index--);
 					action.accept(object);
 					if(this.subMap.listMap.modCount != this.expectedModCount)
 						throw new ConcurrentModificationException();
@@ -5291,15 +5297,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public static class SubMapKeySpliterator<K> extends SubMapSpliterator<K> implements Spliterator<K>
 		{
 
-			public SubMapKeySpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
+			public SubMapKeySpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				super(subMap, startIndex, highBoundery, lowBoundery);
+				super(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@Override
 			protected Spliterator<K> getNewSpilterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				return new SubMapKeySpliterator<K>(subMap, startIndex, highBoundery, lowBoundery);
+				return new SubMapKeySpliterator<K>(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@SuppressWarnings("unchecked")
@@ -5313,15 +5319,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public static class SubMapValueSpliterator<V> extends SubMapSpliterator<V> implements Spliterator<V>
 		{
 
-			public SubMapValueSpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
+			public SubMapValueSpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				super(subMap, startIndex, highBoundery, lowBoundery);
+				super(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@Override
 			protected Spliterator<V> getNewSpilterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				return new SubMapValueSpliterator<V>(subMap, startIndex, highBoundery, lowBoundery);
+				return new SubMapValueSpliterator<V>(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@SuppressWarnings("unchecked")
@@ -5335,15 +5341,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public static class SubMapEntrySpliterator<E extends ListMapEntry<?, ?>> extends SubMapSpliterator<E> implements Spliterator<E>
 		{
 
-			public SubMapEntrySpliterator(SubMap<?, ?> subMap, int startIndex, int highBoundery, int lowBoundery)
+			public SubMapEntrySpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				super(subMap, startIndex, highBoundery, lowBoundery);
+				super(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@Override
 			protected Spliterator<E> getNewSpilterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
 			{
-				return new SubMapEntrySpliterator<E>(subMap, startIndex, highBoundery, lowBoundery);
+				return new SubMapEntrySpliterator<E>(subMap, startIndex, lowBoundery, highBoundery);
 			}
 
 			@SuppressWarnings("unchecked")
