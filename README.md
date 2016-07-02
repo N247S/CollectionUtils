@@ -5,7 +5,7 @@ A Map with advanced control over entry order.
 If you have additions/suggestions/improvements,
 please share them by posting them on this github!</b>
 
-This Map acts like an regular {@link ArrayList} type, but with the difference
+This Map acts like an regular ArrayList type, but with the difference
 that it holds key and values instead of single entries. This Map is not about
 the best performance, but about the best control over its (duplicated)
 entries.<br>
@@ -17,7 +17,7 @@ object of the Map it is possible to replace keys just like values. Although
 this means the behavior of this Map does differ the intended behavior of the
 Map<br>
 <br>
-This Map supports {@link SubMap SubMaps} (including tailMaps and headMaps).
+This Map supports SubMaps (including tailMaps and headMaps).
 These SubMaps are backed up by the main ListMap, meaning they will be updated
 once the ListMap changes and visa versa.<br>
 <br>
