@@ -19,6 +19,7 @@ package com.n247s.util.collection;
 
 import java.io.IOException;
 import java.io.Serializable;
+import java.lang.ref.WeakReference;
 import java.util.AbstractSet;
 import java.util.ArrayList;
 import java.util.Collection;
@@ -32,50 +33,52 @@ import java.util.Set;
 import java.util.Spliterator;
 import java.util.function.Consumer;
 
+import com.n247s.util.collection.ListMap.SubMap;
+
+
 /**
- * This {@link Map} acts like an regular {@link ArrayList} type, but with the
- * difference that it holds key and values instead of single entries. This Map
- * is not about the best performance, but about the best control over its
+ * This Map acts like an regular {@link ArrayList} type, but with the difference
+ * that it holds key and values instead of single entries. This Map is not about
+ * the best performance, but about the best control over its (duplicated)
  * entries.<br>
  * <br>
- * The {@link ListMap} contains a collection of {@link ListMapEntry
- * ListMapEntries} which are held in the same order they were put in. (its
- * behavior is similar to an ArrayList). This Map accept null keys and values,
- * though it doesn't accept null entries.<br>
+ * Basically this Map a ListWrapper adapting to the Maps functionality. Meaning
+ * it is not as efficient as other Map implementations might be. But it offers
+ * advanced key/value control in return. Since Keys aren't the most important
+ * object of the Map it is possible to replace keys just like values. Although
+ * this means the behavior of this Map does differ the intended behavior of the
+ * Map<br>
  * <br>
- * This ListMap supports {@link SubMap SubMaps} (including tailMaps and
- * headMaps). These SubMaps are backed up by the main ListMap, meaning they will
- * be updated once the ListMap changes and visa versa.<br>
+ * This Map supports {@link SubMap SubMaps} (including tailMaps and headMaps).
+ * These SubMaps are backed up by the main ListMap, meaning they will be updated
+ * once the ListMap changes and visa versa.<br>
  * <br>
- * This map is far from efficient, so if someone is able to accomplish the same
- * effect with a {@link List} of Pairs. Its way better to do it as
- * such, since there is no advanced search algorithms involved. What this Map
- * does offer in return is advanced key/value control. Since Keys aren't the
- * most important object of the Map it is possible to replace keys just like
- * values.<br>
- * <br>
- * Since the keys are equally important as values, the {@link Set SetViews} of
- * this map have more operation support as regular SetViews, Such as
- * <tt>add</tt>, <tt>addAll</tt>, <tt>put</tt>, <tt>putAll</tt>
+ * Since the keys are not that important for identifying (because of the
+ * indexing), the (key/value/entry)Views of this map have more operation support
+ * as regular Views, Such as <tt>add</tt>, <tt>addAll</tt>, <tt>put</tt>,
+ * <tt>putAll</tt>
  * 
- * @param <K> the type of keys maintained by this map
- * @param <V> the type of mapped values
+ * @param <K>
+ *            the type of keys maintained by this map
+ * @param <V>
+ *            the type of mapped values
  * 
  * @author N247S
- * @version 1.0
+ * @version 1.1
  */
 public class ListMap<K, V> implements Map<K, V>, Serializable
 {
 
-	private static final long				serialVersionUID	= 6227762186134413555L;
+	private static final long							serialVersionUID	= 6227762186134413555L;
 
-	protected transient ListMapEntrySet		entrySet;
-	protected transient ListMapKeySet		keySet;
-	protected transient ListMapValueSet		valueSet;
-	private transient List<SubMap<K, V>>	subMapInstances;
+	protected transient ListMapEntrySet					entrySet;
+	protected transient ListMapKeySet					keySet;
+	protected transient ListMapValueSet					valueSet;
+	private transient List<WeakReference<SubMap<K, V>>>	subMapInstances;
 
-	private transient int					modCount;
-	
+	private transient int								modCount;
+
+	/** Constructs a ListMap using the given List as backingList */
 	public ListMap(List<ListMapEntry<K, V>> backingList)
 	{
 		if(backingList != null)
@@ -83,15 +86,21 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		else this.entrySet = new ListMapEntrySet();
 		this.keySet = new ListMapKeySet();
 		this.valueSet = new ListMapValueSet();
-		this.subMapInstances = new ArrayList<SubMap<K, V>>();
+		this.subMapInstances = new ArrayList<WeakReference<SubMap<K, V>>>();
 		this.modCount = 0;
 	}
-	
+
+	/** Constructs a ListMap using an ArrayList as backingList */
 	public ListMap()
 	{
 		this((List<ListMapEntry<K, V>>)null);
 	}
-	
+
+	/**
+	 * Constructs a ListMap using the given List as backingList and puts the
+	 * Entries of the given map into the backingList in the order which the
+	 * iterator presents them.
+	 */
 	public ListMap(Map<? extends K, ? extends V> map, List<ListMapEntry<K, V>> backingList)
 	{
 		this(backingList);
@@ -99,49 +108,66 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 	}
 
+	/**
+	 * Constructs a ListMap and puts the Entries of the given map into the
+	 * backingList in the order which the iterator presents them.
+	 */
 	public ListMap(Map<? extends K, ? extends V> map)
 	{
 		this(map, null);
 	}
 
-	/** Adds a new entry at the end of this {@link ListMap} */
+	/**
+	 * Adds a new entry at the end of this Map.
+	 * 
+	 * @param key
+	 *            The key of the new entry.
+	 * @param value
+	 *            The value of the new entry.
+	 */
 	public void add(K key, V value)
 	{
-		this.entrySet.entryList.add(new ListMapEntry<K, V>(key, value));
-		this.modCount++;
+		this.put(key, value);
 	}
 
 	/**
-	 * Adds the entries from the given {@link Map} at the end of this
-	 * {@link ListMap} in the order the {@link Iterator} is presenting the map
-	 * entries
+	 * Adds the entries from the given Map at the end of this Map in the order
+	 * the Iterator is presenting the map entries.
+	 * 
+	 * @param map
 	 */
-	public void addAll(Map<? extends K, ? extends V> map)
+	public void addAll(Map<? extends K, ? extends V> m)
 	{
-		map.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
+		this.putAll(m);
 	}
 
 	/**
-	 * @deprecated This method is enhanced for the sake of {@link ListMap}
-	 *             ordering. Use {@link #put(int, Object, Object)} instead.
-	 * @see #put(int, Object, Object)
+	 * Puts a new Entry at the end of this Map. In contrast to the 'usual'
+	 * behavior of a Map, this method won't replace any values.
+	 * 
+	 * @param key
+	 *            The key of the new entry.
+	 * @param value
+	 *            The value of the new entry.
+	 * @return Always {@code null}
 	 */
 	@Override
 	public V put(K key, V value)
 	{
+		this.put(this.size(), key, value);
 		return null;
 	}
 
 	/**
-	 * Puts a new Entry at the given index in this {@link ListMap}. and shifts
-	 * the remaining entries in the {@link ListMap} by one.
+	 * Puts a new Entry at the given index in this Map and shifts the remaining
+	 * entries in the Map by one.
 	 * 
 	 * @param index
 	 *            The position where this entry should be put.
 	 * @param key
-	 *            The key which the new entry.
+	 *            The key of the new entry.
 	 * @param value
-	 *            The value which the new entry.
+	 *            The value of the new entry.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > {@link #size()}
 	 */
@@ -156,26 +182,28 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * @deprecated This method is enhanced for the sake of {@link ListMap}
-	 *             ordering. Use {@link #putAll(int, Map)} instead.
-	 * @see #putAll(int, Map)
+	 * Puts in all the given entries from the given Map in the order the
+	 * Iterator is presenting the Map's entries.
+	 * 
+	 * @param map
+	 *            The map of entries that should be placed into this Map.
 	 */
 	@Override
 	public void putAll(Map<? extends K, ? extends V> m)
 	{
+		m.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 	}
 
 	/**
-	 * Puts all the given entries from the given map in the order the
-	 * {@link Iterator} is presenting the {@link Map} entries, starting from the
-	 * given index. The remaining entries that were already in the list will
-	 * shift the amount of entries that are present in the given {@link Map}.
+	 * Puts in all the given entries from the given map in the order the
+	 * Iterator is presenting the Map's entries, starting from the given index.
+	 * The remaining entries that were already in the list will shift the amount
+	 * of entries that are present in the given Map.
 	 * 
 	 * @param index
 	 *            The index where to start implementing the given map
 	 * @param map
-	 *            The map of entries that should be placed into this
-	 *            {@link ListMap}.
+	 *            The map of entries that should be placed into this Map.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > {@link #size()}
 	 */
@@ -183,57 +211,64 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	{
 		if(index < 0 || index > this.entrySet.size())
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
-		
+
 		ArrayList<Entry<? extends K, ? extends V>> l = new ArrayList<Entry<? extends K, ? extends V>>(map.entrySet());
 		Collections.reverse(l);
-		
+
 		for(Entry<? extends K, ? extends V> entry : l)
 			this.put(index, entry.getKey(), entry.getValue());
 	}
 
 	/**
-	 * @deprecated Since this map supports both key and value replacing, this
-	 *             method is split up in multiple methods
+	 * Replaces the value of the first entry with the same value and key as the
+	 * given key and Value.
 	 * 
 	 * @param key
+	 *            The key of the entry that the value should be set of.
 	 * @param oldValue
+	 *            The value the entry should have.
 	 * @param newValue
-	 * @return {@code false}
-	 * 
-	 * @see #setValue(int, Object)
-	 * @see #setValue(Object, Object)
-	 * @see #setValue(int, Object, Object)
-	 * 
-	 * @see #replaceKey(int, Object)
-	 * @see #replaceKey(Object, Object)
-	 * @see #replaceKey(int, Object, Object)
+	 *            The new value that should be bound to the specific entry.
+	 * @return {@code true} if the specified entry was present in this Map.
 	 */
 	@Override
 	public boolean replace(K key, V oldValue, V newValue)
 	{
+		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
+		{
+			if(entry.compareKey(key))
+				if(entry.compareValue(oldValue))
+				{
+					entry.setValue(newValue);
+					this.modCount++;
+					return true;
+				}
+		}
 		return false;
 	}
 
 	/**
-	 * @deprecated Since this map supports both key and value replacing, this
-	 *             method is split up in multiple methods.
+	 * Replaces the value of the first Entry with the given key.
 	 * 
 	 * @param key
-	 * @param oldValue
-	 * @param newValue
-	 * @return {@code false}
-	 * 
-	 * @see #setValue(int, Object)
-	 * @see #setValue(Object, Object)
-	 * @see #setValue(int, Object, Object)
-	 * 
-	 * @see #replaceKey(int, Object)
-	 * @see #replaceKey(Object, Object)
-	 * @see #replaceKey(int, Object, Object)
+	 *            The key which value should be bound to.
+	 * @param value
+	 *            The value to be bound.
+	 * @return The value that was previously bound to the given key, or
+	 *         {@code null} if there was no mapping for the given key. Note that
+	 *         a returned {@code null} value might also mean that the previous
+	 *         value was {@code null}!
 	 */
 	@Override
 	public V replace(K key, V value)
 	{
+		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
+			if(entry.compareKey(key))
+			{
+				V oldValue = entry.setValue(value);
+				this.modCount++;
+				return oldValue;
+			}
 		return null;
 	}
 
@@ -265,9 +300,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *            The key which value should be bound to.
 	 * @param value
 	 *            The value to be bound.
-	 * @return The value that was previously bound to the given key.
-	 * @throws NullPointerException
-	 *             If this {@link ListMap} does not contain the given key.
+	 * @return The value that was previously bound to the given key, or
+	 *         {@code null} if there was no mapping for the given key. Note that
+	 *         a returned {@code null} value might also mean that the previous
+	 *         value was {@code null}!
 	 */
 	public V setValue(K key, V value)
 	{
@@ -278,20 +314,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				this.modCount++;
 				return oldValue;
 			}
-		throw new NullPointerException("Couldn't find the given key!");
+		return null;
 	}
 
 	/**
 	 * Sets the value of the key at the index of the duplicated keys that occurs
-	 * in the map. If there is a {@link ListMap} containing 4 times Object
+	 * in the map. If there is a Map containing 4 times Object
 	 * {@code exampleKey}, than {@code listMap.setValue(2, exampleKey, value);}
 	 * will set the value of the third key that is equal to {@code exampleKey}.
 	 * If the given index is bigger than the amount of duplicated keys, an
 	 * exception is thrown.
 	 * 
 	 * @param index
-	 *            The index of this key of the duplicated keys this
-	 *            {@link ListMap} contains.
+	 *            The index of this key of the duplicated keys this Map
+	 *            contains.
 	 * @param key
 	 *            The key the value should be bound to.
 	 * @param value
@@ -304,7 +340,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public V setValue(int index, K key, V value)
 	{
 		int frequency = this.keyfrequency(key);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
@@ -318,6 +354,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				return oldValue;
 			}
 		}
+		// something has changed between the frequency check and the iteration.
 		throw new ConcurrentModificationException();
 	}
 
@@ -331,8 +368,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *            The value the entry should have.
 	 * @param newValue
 	 *            The new value that should be bound to the specific entry.
-	 * @return {@code true} if the specified entry was present in this
-	 *         {@link ListMap}.
+	 * @return {@code true} if the specified entry was present in this Map.
 	 */
 	public boolean setValue(K key, V oldValue, V newValue)
 	{
@@ -351,8 +387,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * Sets the value of the entry at the index of the duplicated entries that
-	 * occurs in the {@link ListMap}. If there is a {@link ListMap} containing 4
-	 * times exact the same entries , than
+	 * occurs in the Map. If there is a Map containing 4 times exact the same
+	 * entries , than
 	 * {@code listMap.setValue(2, dupeEntryKey, dupeEntryValue, newEntryValue);}
 	 * will set the value of the third entry that is equal to the specified
 	 * entry. If the given index is bigger than the amount of the specified
@@ -366,14 +402,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *            The value that should be set to the entry.
 	 * @param newValue
 	 *            The new value that should be bound to the specific entry.
+	 * @return {@code true} if the specified entry was present in this Map.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > the amount of the specified
 	 *             duplicated entries.
 	 */
-	public void setValue(int index, K key, V oldValue, V newValue)
+	public boolean setValue(int index, K key, V oldValue, V newValue)
 	{
 		int frequency = this.entryfrequency(key, oldValue);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
@@ -386,13 +423,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				{
 					entry.setValue(newValue);
 					this.modCount++;
+					return true;
 				}
 			}
 		}
+		return false;
 	}
 
 	/**
-	 * Replaces the key at the given index in this {@link ListMap}.
+	 * Replaces the key at the given index in this Map.
 	 * 
 	 * @param index
 	 *            The index of the key that should be replaced.
@@ -413,50 +452,50 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Replaces the first key in this {@link ListMap} that is equal to the given
-	 * key
+	 * Replaces the first key in this Map that is equal to the given key
 	 * 
 	 * @param key
 	 * @param newKey
 	 *            The Key which the old key should be replaced with.
-	 * @return The key that is replaced.
-	 * @throws NullPointerException
-	 *             If this {@link ListMap} does not contain the given key.
+	 * @return {@code true} if the specified entry was present in this Map, and
+	 *         its key was replaced.
 	 */
-	public void replaceKey(K key, K newKey)
+	public boolean replaceKey(K key, K newKey)
 	{
 		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
 			if(entry.compareKey(key))
 			{
 				entry.setKey(newKey);
 				this.modCount++;
+				return true;
 			}
-		throw new NullPointerException("Couldn't find the given key!");
+		return false;
 	}
 
 	/**
 	 * Replaces the key at the index of the duplicated keys that occurs in the
-	 * map. If there is a {@link ListMap} containing 4 times Object
-	 * {@code exampleKey}, than
+	 * map. If there is a Map containing 4 times Object {@code exampleKey}, than
 	 * {@code listMap.replaceKey(2, exampleKey, value);} will replace the third
 	 * key that is equal to {@code exampleKey}. If the given index is bigger
 	 * than the amount of duplicated keys, an exception is thrown.
 	 * 
 	 * @param index
-	 *            The index of this key of the duplicated keys this
-	 *            {@link ListMap} contains.
+	 *            The index of this key of the duplicated keys this Map
+	 *            contains.
 	 * @param key
 	 *            The key the value should be replaced.
 	 * @param newKey
 	 *            The new key.
+	 * @return {@code true} if the specified entry was present in this Map, and
+	 *         its key was replaced.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
 	 *             given key.
 	 */
-	public void replaceKey(int index, K key, K newKey)
+	public boolean replaceKey(int index, K key, K newKey)
 	{
 		int frequency = this.keyfrequency(key);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
@@ -467,8 +506,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				entry.setKey(newKey);
 				this.modCount++;
+				return true;
 			}
 		}
+		return false;
 	}
 
 	/**
@@ -481,8 +522,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *            The value the entry should have.
 	 * @param newKey
 	 *            The new Key that should be set to the specific entry.
-	 * @return {@code true} if the specified entry was present in this
-	 *         {@link ListMap}.
+	 * @return {@code true} if the specified entry was present in this Map, and
+	 *         its key was replaced.
 	 */
 	public boolean replaceKey(K oldKey, V value, K newKey)
 	{
@@ -501,8 +542,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * Sets the Key of the entry at the index of the duplicated entries that
-	 * occurs in the {@link ListMap}. If there is a {@link ListMap} containing 4
-	 * times exact the same entries , than
+	 * occurs in the Map. If there is a Map containing 4 times exact the same
+	 * entries , than
 	 * {@code listMap.replaceKey(2, dupeEntryKey, dupeEntryValue, newEntryKey);}
 	 * will set the key of the third entry that is equal to the specified entry.
 	 * If the given index is bigger than the amount of the specified duplicated
@@ -516,14 +557,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *            The value of the entry that the should be set from.
 	 * @param newKey
 	 *            The new key that should be set to the specific entry.
+	 * @return {@code true} if the specified entry was present in this Map, and
+	 *         its key was replaced.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > the amount of the specified
 	 *             duplicated entries.
 	 */
-	public void replaceKey(int index, K oldKey, V value, K newKey)
+	public boolean replaceKey(int index, K oldKey, V value, K newKey)
 	{
 		int frequency = this.entryfrequency(oldKey, value);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		for(ListMapEntry<K, V> entry : this.entrySet.entryList)
@@ -536,9 +579,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				{
 					entry.setKey(newKey);
 					this.modCount++;
+					return true;
 				}
 			}
 		}
+		return false;
 	}
 
 	/**
@@ -563,9 +608,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 * 
 	 * @param key
 	 *            The key of the entry that should be removed.
-	 * @return The value of the removed entry.
-	 * @throws NullPointerException
-	 *             If this {@link ListMap} does not contain the given key.
+	 * @return The value of the removed entry, or {@code null} if the given key
+	 *         could not be found. Note, that a returned {@code null} value may
+	 *         also mean that the value of the removed Entry was {@code null}!
 	 */
 	@Override
 	public V remove(Object key)
@@ -581,22 +626,25 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				return value;
 			}
 		}
-		throw new NullPointerException("Couldn't find the given key!");
+		return null;
 	}
 
 	/**
 	 * Removes the Entry with the key at the index of the duplicated keys that
-	 * occurs in the map. If there is a {@link ListMap} containing 4 times
-	 * Object {@code exampleKey}, than {@code listMap.remove(2, exampleKey);}
-	 * will remove the third entry with the key that is equal to
-	 * {@code exampleKey}. If the given index is bigger than the amount of
-	 * duplicated keys, an exception is thrown.
+	 * occurs in the map. If there is a Map containing 4 times Object
+	 * {@code exampleKey}, than {@code listMap.remove(2, exampleKey);} will
+	 * remove the third entry with the key that is equal to {@code exampleKey}.
+	 * If the given index is bigger than the amount of duplicated keys, an
+	 * exception is thrown.
 	 * 
 	 * @param index
-	 *            The index of this key of the duplicated keys this
-	 *            {@link ListMap} contains.
+	 *            The index of this key of the duplicated keys this Map
+	 *            contains.
 	 * @param key
 	 *            The key the value should be replaced.
+	 * @return The value of the removed entry, or {@code null} if the given key
+	 *         could not be found. Note, that a returned {@code null} value may
+	 *         also mean that the value of the removed Entry was {@code null}!
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
 	 *             given key.
@@ -604,7 +652,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public V remove(int index, K key)
 	{
 		int frequency = this.keyfrequency(key);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		ListMapEntry<K, V> entry;
@@ -620,6 +668,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				return value;
 			}
 		}
+		// Something has changed between the frequency check and the iteration.
 		throw new ConcurrentModificationException();
 	}
 
@@ -643,10 +692,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * Removes the entry at the index of the duplicated entries that occurs in
-	 * the {@link ListMap}. If there is a {@link ListMap} containing 4 times
-	 * exact the same entries , than
-	 * {@code listMap.remove(2, dupeEntryKey, dupeEntryValue);} will remove the
-	 * third entry that is equal to the specified entry.
+	 * the Map. If there is a Map containing 4 times exact the same entries ,
+	 * than {@code listMap.remove(2, dupeEntryKey, dupeEntryValue);} will remove
+	 * the third entry that is equal to the specified entry.
 	 * 
 	 * @param index
 	 *            The index of the entry of the duplicated entries.
@@ -655,15 +703,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 * @param value
 	 *            The value of the entry that should be removed.
 	 * @return {@code true} if the specified entry at the index of the specified
-	 *         duplicated entries was present in this {@link ListMap}. So if
-	 *         index < 0 or index > the amount of specified duplicated entries,
-	 *         than False is returned.
+	 *         duplicated entries was present in this Map, {@code false}
+	 *         otherwise.
+	 * @throws IndexOutOfBoundsException
+	 *             if index < 0 || index > the amount of the specified
+	 *             duplicated entries.
 	 */
-	@SuppressWarnings("unchecked")
-	public boolean remove(int index, Object key, Object value)
+	public boolean remove(int index, K key, V value)
 	{
-		if(index < 0 || index > this.entryfrequency((K)key, (V)value))
-			return false;
+		int frequency = this.entryfrequency(key, value);
+		if(index < 0 || index >= frequency)
+			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		ListMapEntry<K, V> entry;
 
@@ -712,7 +762,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 * @param value
 	 * @return The amount of entries that have been removed
 	 */
-	public int removeAll(K key, V value)
+	public int removeAll(Object key, Object value)
 	{
 		int removedAmount = 0;
 		ListMapEntryIterator iterator = this.entrySet.iterator();
@@ -758,8 +808,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 * key.
 	 * 
 	 * @param key
-	 * @return The value bound to the given key, or null if the {@link ListMap}
-	 *         does not contain the given key
+	 * @return The value bound to the given key, or null if the Map does not
+	 *         contain the given key
 	 */
 	@Override
 	public V get(Object key)
@@ -769,18 +819,18 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * This method returns the value of the key at the index of duplicated keys.
-	 * If there is a {@link ListMap} containing 4 times Object {@code example},
-	 * than {@code listMap.get(Object, 2);} will return the value of the third
-	 * key that is equal to {@code example}.If the given index is bigger than
-	 * the amount of duplicated keys, an exception is thrown.
+	 * If there is a Map containing 4 times Object {@code example}, than
+	 * {@code listMap.get(Object, 2);} will return the value of the third key
+	 * that is equal to {@code example}.If the given index is bigger than the
+	 * amount of duplicated keys, an exception is thrown.
 	 * 
 	 * @param index
-	 *            The index of this key of the duplicated keys this
-	 *            {@link ListMap} contains.
+	 *            The index of this key of the duplicated keys this Map
+	 *            contains.
 	 * @param key
 	 *            The key the value is bound to.
 	 * @return The value that is bound to the given key, at the index of the
-	 *         duplicated keys in this {@link ListMap}.
+	 *         duplicated keys in this Map.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
 	 *             given key.
@@ -792,13 +842,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * Returns the value of the first entry with a key thats equal to the given
-	 * key, or the default value if the {@link ListMap} does not contain the
-	 * given key.
+	 * key, or the default value if the Map does not contain the given key.
 	 * 
 	 * @param key
 	 * @param defaultValue
-	 * @return The value bound to the given key, or the default value if the
-	 *         {@link ListMap} does not contain the given key.
+	 * @return The value bound to the given key, or the default value if the Map
+	 *         does not contain the given key.
 	 */
 	@Override
 	public V getOrDefault(Object key, V defaultValue)
@@ -811,21 +860,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 	/**
 	 * This method returns the value of the key at the index of duplicated keys.
-	 * Or the default value if the {@link ListMap} does not contain the given
-	 * key. If there is a {@link ListMap} containing 4 times Object
-	 * {@code example}, than {@code listMap.get(Object, 2);} will return the
-	 * value of the third key that is equal to {@code example}.If the given
-	 * index is bigger than the amount of duplicated keys, an exception is
-	 * thrown.
+	 * Or the default value if the Map does not contain the given key. If there
+	 * is a Map containing 4 times Object {@code example}, than
+	 * {@code listMap.get(Object, 2);} will return the value of the third key
+	 * that is equal to {@code example}.If the given index is bigger than the
+	 * amount of duplicated keys, an exception is thrown.
 	 * 
 	 * @param index
-	 *            The index of this key of the duplicated keys this
-	 *            {@link ListMap} contains.
+	 *            The index of this key of the duplicated keys this Map
+	 *            contains.
 	 * @param key
 	 *            The key the value is bound to.
 	 * @return The value that is bound to the given key, at the index of the
-	 *         duplicated keys in this {@link ListMap}. or the default value if
-	 *         the {@link ListMap} does not contain the given key.
+	 *         duplicated keys in this Map. or the default value if the Map does
+	 *         not contain the given key.
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
 	 *             given key.
@@ -833,7 +881,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public V getOrDefault(int index, K key, V defaultValue)
 	{
 		int frequency = this.keyfrequency(key);
-		if(index < 0 || index > frequency)
+		if(index < 0 || index >= frequency)
 			throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
 		if(frequency == 0)
@@ -846,9 +894,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(index < 0)
 				return entry.getValue();
 		}
-		return null;
+		// something has changed between the frequency check and the iteration.
+		throw new ConcurrentModificationException();
 	}
-	
+
 	/**
 	 * Returns the key of the entry at the given index.
 	 * 
@@ -864,25 +913,32 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		return this.entrySet.entryList.get(index).getKey();
 	}
-	
-	/** Returns true if this {@link ListMap} contains the given key */
+
+	/**
+	 * Checks if this Map contains the given key.
+	 * 
+	 * @param key
+	 * @return {@code true} if this Map contains the given key.
+	 */
 	@Override
 	public boolean containsKey(Object key)
 	{
 		return this.entrySet.containsKey(key);
 	}
 
-	/** Returns true if this {@link ListMap} contains the given value */
+	/**
+	 * Checks if this Map contains the given value.
+	 * 
+	 * @param key
+	 * @return {@code true} if this Map contains the given value.
+	 */
 	@Override
 	public boolean containsValue(Object value)
 	{
 		return this.entrySet.containsValue(value);
 	}
 
-	/**
-	 * Returns the amount of keys in this {@link ListMap} that are equal to the
-	 * given key
-	 */
+	/** @return The amount entries containing the given key. */
 	public int keyfrequency(Object key)
 	{
 		int frequency = 0;
@@ -892,6 +948,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		return frequency;
 	}
 
+	/** @return The amount of entries containing the given value. */
 	public int valuefrequency(Object value)
 	{
 		int frequency = 0;
@@ -902,8 +959,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns the amount of entries in this {@link ListMap} that contains the
-	 * given key and value
+	 * @return The amount of entries in this Map that contains the given key and
+	 *         value
 	 */
 	public int entryfrequency(K key, V value)
 	{
@@ -974,17 +1031,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		return this.entrySet;
 	}
 
-	/**
-	 * @deprecated Uses a custom generic type for the {@link #entrySet} of
-	 *             {@link #entrySet()}. Use {@link #getEntrySet()} instead.
-	 * @see #getEntrySet()
-	 */
+	@SuppressWarnings("unchecked")
 	@Override
 	public Set<java.util.Map.Entry<K, V>> entrySet()
 	{
-		return null;
+		// This weird casting is needed since the Compiler doesn't allow direct
+		// casting of the EntrySet, while it is valid for the JVM.
+		Object set = this.entrySet;
+		return (Set<java.util.Map.Entry<K, V>>)set;
 	}
-	
+
 	/**
 	 * This will return the backing list of this ListMap. Although that changes
 	 * to the list are reflected in this map and visa versa, though its highly
@@ -998,14 +1054,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.<br>
+	 * <br>
+	 * This is equivalent to
+	 * <code>new SubMap(fromIndex, true, toIndex, false)</code>
 	 * 
 	 * @param fromIndex
-	 *            The index from where the {@link SubMap} should start.
+	 *            The index from where the SubMap should start.
 	 * @param toIndex
-	 *            The index where the {@link SubMap} should end.
+	 *            The index where the SubMap should end.
 	 * @return
 	 */
 	public SubMap<K, V> subMap(int fromIndex, int toIndex)
@@ -1014,20 +1072,19 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.
 	 * 
 	 * @param fromIndex
-	 *            The index from where the {@link SubMap} should start.
+	 *            The index from where the SubMap should start.
 	 * @param inclusiveLowKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @param toIndex
-	 *            The index where the {@link SubMap} should end.
+	 *            The index where the SubMap should end.
 	 * @param inclusiveHighKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 */
 	public SubMap<K, V> subMap(int fromIndex, boolean inclusiveLowKey, int toIndex, boolean inclusiveHighKey)
@@ -1036,44 +1093,43 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.<br>
+	 * <br>
+	 * This is equivalent to
+	 * <code>new SubMap(fromKey, true, toKey, false)</code>
 	 * 
 	 * @param fromKey
-	 *            The key from where the {@link SubMap} should start. Note that
-	 *            it will pick the first appearance of the given key!
-	 * @param toKey
-	 *            The key where the {@link SubMap} should end. Note that it will
+	 *            The key from where the SubMap should start. Note that it will
 	 *            pick the first appearance of the given key!
+	 * @param toKey
+	 *            The key where the SubMap should end. Note that it will pick
+	 *            the first appearance of the given key!
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given keys are not present in this
-	 *             {@link ListMap}
+	 *             If one of the given keys are not present in this Map
 	 */
 	public SubMap<K, V> subMap(K fromKey, K toKey)
 	{
 		if(!this.containsKey(fromKey) || !this.containsKey(toKey))
 			throw new NullPointerException("Couldn't find the given keys!");
 
-		return this.subMap(fromKey, true, toKey, true);
+		return this.subMap(fromKey, true, toKey, false);
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.
 	 * 
 	 * @param fromKey
-	 *            The key from where the {@link SubMap} should start. Note that
-	 *            it will pick the first appearance of the given key!
-	 * @param toKey
-	 *            The key where the {@link SubMap} should end. Note that it will
+	 *            The key from where the SubMap should start. Note that it will
 	 *            pick the first appearance of the given key!
+	 * @param toKey
+	 *            The key where the SubMap should end. Note that it will pick
+	 *            the first appearance of the given key!
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given keys are not present in this
-	 *             {@link ListMap}
+	 *             If one of the given keys are not present in this Map
 	 */
 	public SubMap<K, V> subMap(K fromKey, boolean inclusiveLowKey, K toKey, boolean inclusiveHighKey)
 	{
@@ -1098,24 +1154,23 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.<br>
+	 * <br>
+	 * This is equivalent to
+	 * <code>new SubMap(fromIndex, true, toIndex, false)</code>
 	 * 
 	 * @param fromKeyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param fromKey
-	 *            The key from where the {@link SubMap} should start.
+	 *            The key from where the SubMap should start.
 	 * @param toKeyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param toKey
-	 *            The key where the {@link SubMap} should end.
+	 *            The key where the SubMap should end.
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given keys are not present in this
-	 *             {@link ListMap}
+	 *             If one of the given keys are not present in this Map
 	 */
 	public SubMap<K, V> subMap(int fromKeyIndex, K fromKey, int toKeyIndex, K toKey)
 	{
@@ -1123,31 +1178,27 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap} that is backed up by this {@link ListMap}. Every
-	 * modification that is made to the {@link SubMap} is represented in the
-	 * {@link ListMap} and visa versa.
+	 * Returns a SubMap that is backed up by this Map. Every modification that
+	 * is made to the SubMap is represented in the Map and visa versa.
 	 * 
 	 * @param fromKeyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param fromKey
-	 *            The key from where the {@link SubMap} should start.
+	 *            The key from where the SubMap should start.
 	 * @param inclusiveLowKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @param toKeyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param toKey
-	 *            The key where the {@link SubMap} should end.
+	 *            The key where the SubMap should end.
 	 * @param inclusiveHighKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 * @throws IndexOutOfBoundsException
 	 *             If the given index of duplicated keys are lower than 0, or
-	 *             higher than the frequency they appears in the {@link ListMap}
-	 *             .
+	 *             higher than the frequency they appears in the Map .
 	 */
 	public SubMap<K, V> subMap(int fromKeyIndex, K fromKey, boolean inclusiveLowKey, int toKeyIndex, K toKey, boolean inclusiveHighKey)
 	{
@@ -1180,12 +1231,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap tailMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap tailMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.<br>
+	 * <br>
+	 * This is equivalent to <code>new tailMap(fromIndex, true)</code>
 	 * 
 	 * @param fromIndex
-	 *            The index from where the {@link SubMap} should start.
+	 *            The index from where the SubMap should start.
 	 * @return
 	 */
 	public SubMap<K, V> tailMap(int fromIndex)
@@ -1194,17 +1247,18 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap tailMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap tailMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.<br>
+	 * <br>
+	 * This is equivalent to <code>new tailMap(fromKey, true)</code>
 	 * 
 	 * @param fromKey
-	 *            The key from where the {@link SubMap} should start. Note that
-	 *            it will pick the first appearance of the given key!
+	 *            The key from where the SubMap should start. Note that it will
+	 *            pick the first appearance of the given key!
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given key is not present in this
-	 *             {@link ListMap}
+	 *             If one of the given key is not present in this Map
 	 */
 	public SubMap<K, V> tailMap(K fromKey)
 	{
@@ -1212,37 +1266,36 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap tailMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap tailMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param fromIndex
-	 *            The index from where the {@link SubMap} should start.
+	 *            The index from where the SubMap should start.
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 */
 	public SubMap<K, V> tailMap(int fromIndex, boolean inclusiveKey)
 	{
-		return new SubMap<K, V>(this, false, fromIndex, inclusiveKey, true, -1, true);
+		return new SubMap<K, V>(this, false, fromIndex, inclusiveKey, true, -1, false);
 	}
 
 	/**
-	 * Returns a {@link SubMap tailMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap tailMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param key
-	 *            The key from where the {@link SubMap} should start. Note that
-	 *            it will pick the first appearance of the given key!
+	 *            The key from where the SubMap should start. Note that it will
+	 *            pick the first appearance of the given key!
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given key is not present in this
-	 *             {@link ListMap}
+	 *             If one of the given key is not present in this Map
 	 */
 	public SubMap<K, V> tailMap(K key, boolean inclusiveKey)
 	{
@@ -1253,18 +1306,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap TailMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap TailMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param keyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param key
-	 *            The key from where the {@link SubMap} should start.
+	 *            The key from where the SubMap should start.
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
@@ -1287,44 +1339,48 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap headMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap headMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.<br>
+	 * <br>
+	 * This is equivalent to <code>new headMap(toIndex, false)</code>
 	 * 
 	 * @param toIndex
-	 *            The index where the {@link SubMap} should end.
+	 *            The index where the SubMap should end.
 	 * @return
 	 */
 	public SubMap<K, V> headMap(int toIndex)
 	{
-		return this.headMap(toIndex, true);
+		return this.headMap(toIndex, false);
 	}
 
 	/**
-	 * Returns a {@link SubMap headMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap headMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.<br>
+	 * <br>
+	 * This is equivalent to <code>new headMap(toKey, false)</code>
 	 * 
 	 * @param toIndex
-	 *            The key where the {@link SubMap} should end. Note that it will
-	 *            pick the first appearance of the given key!
+	 *            The key where the SubMap should end. Note that it will pick
+	 *            the first appearance of the given key!
 	 * @return
 	 */
 	public SubMap<K, V> headMap(K toKey)
 	{
-		return this.headMap(toKey, true);
+		return this.headMap(toKey, false);
 	}
 
 	/**
-	 * Returns a {@link SubMap headMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap headMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param toIndex
-	 *            The index where the {@link SubMap} should end.
+	 *            The index where the SubMap should end.
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 */
 	public SubMap<K, V> headMap(int toIndex, boolean inclusiveKey)
@@ -1333,20 +1389,19 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap headMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap headMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param key
-	 *            The key where the {@link SubMap} should end. Note that it will
-	 *            pick the first appearance of the given key!
+	 *            The key where the SubMap should end. Note that it will pick
+	 *            the first appearance of the given key!
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 * @throws NullPointerException
-	 *             If one of the given key is not present in this
-	 *             {@link ListMap}
+	 *             If one of the given key is not present in this Map
 	 */
 	public SubMap<K, V> headMap(K key, boolean inclusiveKey)
 	{
@@ -1357,18 +1412,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/**
-	 * Returns a {@link SubMap headMap} that is backed up by this
-	 * {@link ListMap}. Every modification that is made to the {@link SubMap} is
-	 * represented in the {@link ListMap} and visa versa.
+	 * Returns a {@link SubMap headMap} that is backed up by this Map. Every
+	 * modification that is made to the SubMap is represented in the Map and
+	 * visa versa.
 	 * 
 	 * @param keyIndex
-	 *            The given key's index of the duplicated keys in this
-	 *            {@link ListMap}.
+	 *            The given key's index of the duplicated keys in this Map.
 	 * @param key
-	 *            The key where the {@link SubMap} should end.
+	 *            The key where the SubMap should end.
 	 * @param inclusiveKey
 	 *            Whether the key at the given index should be included to the
-	 *            {@link SubMap}.
+	 *            SubMap.
 	 * @return
 	 * @throws IndexOutOfBoundsException
 	 *             if index < 0 || index > amount of keys that are equal to the
@@ -1397,27 +1451,69 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	 *
 	 * NB: Do not replace with Object.equals until JDK-8015417 is resolved. <br>
 	 */
-	private static boolean compareObjects(Object o1, Object o2)
+	protected static boolean compareObjects(Object o1, Object o2)
 	{
 		return o1 == null ? o2 == null : o1.equals(o2);
 	}
 
-	/** Used for interally for syncing subMaps */
-	private void commitEdit(String editType, int index)
+	/** Used for internally for synchronizing subMaps */
+	protected void commitEdit(String editType, int index)
 	{
-		switch(editType)
+		Iterator<WeakReference<SubMap<K, V>>> itt = this.subMapInstances.iterator();
+		WeakReference<SubMap<K, V>> subMapRef;
+		SubMap<K, V> subMap;
+
+		if("Put".equals(editType))
 		{
-			case "Put":
-				for(SubMap<K, V> subMap : this.subMapInstances)
-					if(subMap.toEnd && subMap.isIndexInBounderies(index))
-						++subMap.toEntry;
-			case "Remove":
-				for(SubMap<K, V> subMap : this.subMapInstances)
-					if(subMap.isIndexInBounderies(index))
-						--subMap.toEntry;
-			case "clear":
-				for(SubMap<K, V> subMap : this.subMapInstances)
-					subMap.toEntry = -1;
+			while(itt.hasNext())
+			{
+				subMapRef = itt.next();
+
+				if(subMapRef.get() == null)
+				{
+					itt.remove();
+					continue;
+				}
+
+				subMap = subMapRef.get();
+
+				if(subMap.isIndexInBounderies(index) && !subMap.toEnd)
+					++subMap.toEntry;
+			}
+		}
+		else if("Remove".equals(editType))
+		{
+			while(itt.hasNext())
+			{
+				subMapRef = itt.next();
+
+				if(subMapRef.get() == null)
+				{
+					itt.remove();
+					continue;
+				}
+
+				subMap = subMapRef.get();
+				if(subMap.isIndexInBounderies(index) && !subMap.toEnd)
+					--subMap.toEntry;
+			}
+		}
+		else if("clear".equals(editType))
+		{
+			while(itt.hasNext())
+			{
+				subMapRef = itt.next();
+
+				if(subMapRef.get() == null)
+				{
+					itt.remove();
+					continue;
+				}
+				subMap = subMapRef.get();
+
+				subMap.fromEntry = -1;
+				subMap.toEntry = -1;
+			}
 		}
 	}
 
@@ -1603,8 +1699,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Adds the keys inside the Collection at the end of this
-		 * {@link ListMap}. The values will be set to null
+		 * Adds the keys inside the Collection at the end of this Map. The
+		 * values will be set to null
 		 * 
 		 * @param key
 		 * @return Always {@code true}
@@ -1617,9 +1713,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Puts an Entry with the given key at the given index in of this
-		 * {@link ListMap}, and shifts the remaining entries by one. The value
-		 * will be null.
+		 * Puts an Entry with the given key at the given index in of this Map,
+		 * and shifts the remaining entries by one. The value will be null.
 		 * 
 		 * @param index
 		 * @param key
@@ -1631,9 +1726,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Puts All the given keys in this {@link ListMap} starting at the
-		 * beginIndex, and shifts the remaining entries by the amount of added
-		 * entries.
+		 * Puts All the given keys in this Map starting at the beginIndex, and
+		 * shifts the remaining entries by the amount of added entries.
 		 * 
 		 * @param beginIndex
 		 * @param c
@@ -1648,7 +1742,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Replaces the key at the given index in this {@link ListMap}.
+		 * Replaces the key at the given index in this Map.
 		 * 
 		 * @param index
 		 *            The index of the key that should be replaced.
@@ -1664,25 +1758,26 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Replaces the first appearance of the given key in this
-		 * {@link ListMap}.
+		 * Replaces the first appearance of the given key in this Map.
 		 * 
 		 * @param oldKey
 		 *            The key that should be replaced.
 		 * @param newKey
 		 *            The new key.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its key was replaced.
 		 */
-		public void replace(K oldKey, K newKey)
+		public boolean replace(K oldKey, K newKey)
 		{
-			ListMap.this.replaceKey(oldKey, newKey);
+			return ListMap.this.replaceKey(oldKey, newKey);
 		}
 
 		/**
 		 * This method replaces the key at the index of duplicated keys. If
-		 * there is a {@link ListMap} containing 4 times Object {@code example},
-		 * than {@code listMapKeySet.replace(2, oldKey, newKey);} will replace
-		 * the the third key that is equal to {@code example}.If the given index
-		 * is bigger than the amount of duplicated keys, an exception is thrown.
+		 * there is a Map containing 4 times Object {@code example}, than
+		 * {@code listMapKeySet.replace(2, oldKey, newKey);} will replace the
+		 * the third key that is equal to {@code example}.If the given index is
+		 * bigger than the amount of duplicated keys, an exception is thrown.
 		 * 
 		 * @param index
 		 * @param oldKey
@@ -1690,10 +1785,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @throws IndexOutOfBoundsException
 		 *             If index < 0 || index > amount of keys that are equal to
 		 *             the given key.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its key was replaced.
 		 */
-		public void replace(int index, K oldKey, K newKey)
+		public boolean replace(int index, K oldKey, K newKey)
 		{
-			ListMap.this.replaceKey(index, oldKey, newKey);
+			return ListMap.this.replaceKey(index, oldKey, newKey);
 		}
 
 		/**
@@ -1712,11 +1809,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * 
 		 * @param key
 		 *            The key of the entry that should be removed
-		 * @return {@code true} if this {@link ListMap} contained the given key.
+		 * @return {@code true} if this Map contained the given key.
 		 */
 		@Override
 		public boolean remove(Object key)
 		{
+			// Seperate check because of possible null Value's.
 			if(this.contains(key))
 			{
 				ListMap.this.remove(key);
@@ -1727,17 +1825,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * This method removes the entry with the given key at the index of
-		 * duplicated keys. If there is a {@link ListMap} containing 4 times
-		 * Object {@code example}, than
-		 * {@code listMapKeySet.remove(2, example);} will remove the third entry
-		 * with the key that is equal to {@code example} .If the given index is
-		 * bigger than the amount of duplicated keys, an exception is thrown.
+		 * duplicated keys. If there is a Map containing 4 times Object
+		 * {@code example}, than {@code listMapKeySet.remove(2, example);} will
+		 * remove the third entry with the key that is equal to {@code example}
+		 * .If the given index is bigger than the amount of duplicated keys, an
+		 * exception is thrown.
 		 * 
 		 * @param index
 		 *            The index of the duplicated keys that should be removed
 		 * @param key
 		 *            The key of the entry that should be removed
-		 * @return {@code true} if this {@link ListMap} contained the given key.
+		 * @return {@code true} if this Map contained the given key.
 		 * @throws IndexOutOfBoundsException
 		 *             If index < 0 || index > amount of keys that are equal to
 		 *             the given key.
@@ -1748,16 +1846,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(index < 0 || index > frequency)
 				throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
-			if(this.contains(key))
-			{
-				ListMap.this.remove(index, key);
-				return true;
-			}
-			return false;
+			return ListMap.this.remove(index, key);
 		}
 
 		/**
-		 * Removes all the entries in the {@link ListMap} with the given key.
+		 * Removes all the entries in the Map with the given key.
 		 * 
 		 * @param key
 		 *            The key to check for if an entry should be deleted.
@@ -1769,7 +1862,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * This method clears all the entries from this {@link ListMap}.
+		 * This method clears all the entries from this Map.
 		 */
 		@Override
 		public void clear()
@@ -1779,7 +1872,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapKeyIterator} that starts at the begin of the
-		 * {@link ListMap}.
+		 * Map.
 		 * 
 		 * @return A new {@link ListMapKeyIterator}.
 		 */
@@ -1791,7 +1884,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapKeyIterator} that starts at the given
-		 * position in the {@link ListMap}.
+		 * position in the Map.
 		 * 
 		 * @param startIndex
 		 *            The index where this Iterator should start iterating.
@@ -1834,8 +1927,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Adds the values inside the Collection at the end of this
-		 * {@link ListMap}. The keys will be set to null
+		 * Adds the values inside the Collection at the end of this Map. The
+		 * keys will be set to null
 		 * 
 		 * @param key
 		 * @return Always {@code true}
@@ -1848,9 +1941,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Puts an Entry with the given value at the given index in of this
-		 * {@link ListMap}, and shifts the remaining entries by one. The key
-		 * will be null.
+		 * Puts an Entry with the given value at the given index in of this Map,
+		 * and shifts the remaining entries by one. The key will be null.
 		 * 
 		 * @param index
 		 * @param key
@@ -1862,9 +1954,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Puts All the given values in this {@link ListMap} starting at the
-		 * beginIndex, and shifts the remaining entries by the amount of added
-		 * entries.
+		 * Puts All the given values in this Map starting at the beginIndex, and
+		 * shifts the remaining entries by the amount of added entries.
 		 * 
 		 * @param beginIndex
 		 * @param c
@@ -1879,7 +1970,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Sets the value at the given index in this {@link ListMap}.
+		 * Sets the value at the given index in this Map.
 		 * 
 		 * @param index
 		 *            The index of the value that should be replaced.
@@ -1906,7 +1997,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Removes all the entries in the {@link ListMap} with the given value.
+		 * Removes all the entries in the Map with the given value.
 		 * 
 		 * @param value
 		 *            The value to check for if an entry should be deleted.
@@ -1929,7 +2020,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * This method clears all the entries from this {@link ListMap}.
+		 * This method clears all the entries from this Map.
 		 */
 		@Override
 		public void clear()
@@ -1939,7 +2030,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapValueIterator} that starts at the begin of
-		 * the {@link ListMap}.
+		 * the Map.
 		 * 
 		 * @return A new {@link ListMapValueIterator}.
 		 */
@@ -1951,7 +2042,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapValueIterator} that starts at the given
-		 * position in the {@link ListMap}.
+		 * position in the Map.
 		 * 
 		 * @param startIndex
 		 *            The index where this Iterator should start iterating.
@@ -1985,7 +2076,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			this.entryList = new ArrayList<ListMapEntry<K, V>>();
 		}
-		
+
 		/**
 		 * This constructor is added to support custom implementation of a
 		 * backing list. An example use of this is the javafx' ObservableList
@@ -2015,7 +2106,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			return true;
 		}
 
-		/** Adds a new entry at the end of this {@link ListMap} */
+		/** Adds a new entry at the end of this Map */
 		public void add(K key, V value)
 		{
 			ListMap.this.add(key, value);
@@ -2036,9 +2127,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Adds the entries from the given {@link Map} at the end of this
-		 * {@link ListMap} in the order the {@link Iterator} is presenting the
-		 * map entries
+		 * Adds the entries from the given Map at the end of this Map in the
+		 * order the Iterator is presenting the map entries
 		 */
 		public void addAll(Map<? extends K, ? extends V> map)
 		{
@@ -2046,8 +2136,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Puts a new Entry at the given index in this {@link ListMap}. and
-		 * shifts the remaining entries in the {@link ListMap} by one.
+		 * Puts a new Entry at the given index in this Map. and shifts the
+		 * remaining entries in the Map by one.
 		 * 
 		 * @param index
 		 *            The position where this entry should be put.
@@ -2065,16 +2155,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Puts all the given entries from the given map in the order the
-		 * {@link Iterator} is presenting the {@link Map} entries, starting from
-		 * the given index. The remaining entries that were already in the list
-		 * will shift the amount of entries that are present in the given
-		 * {@link Map}.
+		 * Iterator is presenting the Map entries, starting from the given
+		 * index. The remaining entries that were already in the list will shift
+		 * the amount of entries that are present in the given Map.
 		 * 
 		 * @param index
 		 *            The index where to start implementing the given map
 		 * @param map
-		 *            The map of entries that should be placed into this
-		 *            {@link ListMap}.
+		 *            The map of entries that should be placed into this Map.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > {@link #size()}
 		 */
@@ -2108,7 +2196,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value to be bound.
 		 * @return The value that was previously bound to the given key.
 		 * @throws NullPointerException
-		 *             If this {@link ListMap} does not contain the given key.
+		 *             If this Map does not contain the given key.
 		 */
 		public V setValue(K key, V value)
 		{
@@ -2117,16 +2205,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Sets the value of the key at the index of the duplicated keys that
-		 * occurs in the map. If there is a {@link ListMap} containing 4 times
-		 * Object {@code exampleKey}, than
+		 * occurs in the map. If there is a Map containing 4 times Object
+		 * {@code exampleKey}, than
 		 * {@code listMapEntrySet.setValue(2, exampleKey, value);} will set the
 		 * value of the third key that is equal to {@code exampleKey}. If the
 		 * given index is bigger than the amount of duplicated keys, an
 		 * exception is thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link ListMap} contains.
+		 *            The index of this key of the duplicated keys this Map
+		 *            contains.
 		 * @param key
 		 *            The key the value should be bound to.
 		 * @param value
@@ -2151,8 +2239,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value the entry should have.
 		 * @param newValue
 		 *            The new value that should be bound to the specific entry.
-		 * @return {@code true} if the specified entry was present in this
-		 *         {@link ListMap}.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its value was replaced.
 		 */
 		public boolean setValue(K key, V oldValue, V newValue)
 		{
@@ -2161,8 +2249,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Sets the value of the entry at the index of the duplicated entries
-		 * that occurs in the {@link ListMap}. If there is a {@link ListMap}
-		 * containing 4 times exact the same entries , than
+		 * that occurs in the Map. If there is a Map containing 4 times exact
+		 * the same entries , than
 		 * {@code listMapEntrySet.setValue(2, dupeEntryKey, dupeEntryValue, newEntryValue);}
 		 * will set the value of the third entry that is equal to the specified
 		 * entry. If the given index is bigger than the amount of the specified
@@ -2176,17 +2264,19 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value that should be set to the entry.
 		 * @param newValue
 		 *            The new value that should be bound to the specific entry.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its value was replaced.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > the amount of the specified
 		 *             duplicated entries.
 		 */
-		public void setValue(int index, K key, V oldValue, V newValue)
+		public boolean setValue(int index, K key, V oldValue, V newValue)
 		{
-			ListMap.this.setValue(index, key, oldValue, newValue);
+			return ListMap.this.setValue(index, key, oldValue, newValue);
 		}
 
 		/**
-		 * Replaces the key at the given index in this {@link ListMap}.
+		 * Replaces the key at the given index in this Map.
 		 * 
 		 * @param index
 		 *            The index of the key that should be replaced.
@@ -2202,24 +2292,24 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Replaces the first key in this {@link ListMap} that is equal to the
-		 * given key
+		 * Replaces the first key in this Map that is equal to the given key
 		 * 
 		 * @param key
 		 * @param newKey
 		 *            The Key which the old key should be replaced with.
-		 * @return The key that is replaced.
+		 * @return {@code true} if the specified entry was present in this Map.
 		 * @throws NullPointerException
-		 *             If this {@link ListMap} does not contain the given key.
+		 *             If this Map does not contain the given key, and its key
+		 *             was replaced.
 		 */
-		public void replaceKey(K key, K newKey)
+		public boolean replaceKey(K key, K newKey)
 		{
-			ListMap.this.replaceKey(key, newKey);
+			return ListMap.this.replaceKey(key, newKey);
 		}
 
 		/**
 		 * Replaces the key at the index of the duplicated keys that occurs in
-		 * the map. If there is a {@link ListMap} containing 4 times Object
+		 * the map. If there is a Map containing 4 times Object
 		 * {@code exampleKey}, than
 		 * {@code listMapEntrySet.replaceKey(2, exampleKey, value);} will
 		 * replace the third key that is equal to {@code exampleKey}. If the
@@ -2227,19 +2317,21 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * exception is thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link ListMap} contains.
+		 *            The index of this key of the duplicated keys this Map
+		 *            contains.
 		 * @param key
 		 *            The key the value should be replaced.
 		 * @param newKey
 		 *            The new key.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its key was replaced.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > amount of keys that are equal to
 		 *             the given key.
 		 */
-		public void replaceKey(int index, K key, K newKey)
+		public boolean replaceKey(int index, K key, K newKey)
 		{
-			ListMap.this.replaceKey(index, key, newKey);
+			return ListMap.this.replaceKey(index, key, newKey);
 		}
 
 		/**
@@ -2252,8 +2344,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value the entry should have.
 		 * @param newKey
 		 *            The new Key that should be set to the specific entry.
-		 * @return {@code true} if the specified entry was present in this
-		 *         {@link ListMap}.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its key was replaced.
 		 */
 		public boolean replaceKey(K oldKey, V value, K newKey)
 		{
@@ -2262,8 +2354,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Sets the Key of the entry at the index of the duplicated entries that
-		 * occurs in the {@link ListMap}. If there is a {@link ListMap}
-		 * containing 4 times exact the same entries , than
+		 * occurs in the Map. If there is a Map containing 4 times exact the
+		 * same entries , than
 		 * {@code listMapEntrySet.replaceKey(2, dupeEntryKey, dupeEntryValue, newEntryKey);}
 		 * will set the key of the third entry that is equal to the specified
 		 * entry. If the given index is bigger than the amount of the specified
@@ -2299,16 +2391,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Removes the Entry with the key at the index of the duplicated keys
-		 * that occurs in the map. If there is a {@link ListMap} containing 4
-		 * times Object {@code exampleKey}, than
+		 * that occurs in the map. If there is a Map containing 4 times Object
+		 * {@code exampleKey}, than
 		 * {@code listMapEntrySet.remove(2, exampleKey);} will remove the third
 		 * entry with the key that is equal to {@code exampleKey}. If the given
 		 * index is bigger than the amount of duplicated keys, an exception is
 		 * thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link ListMap} contains.
+		 *            The index of this key of the duplicated keys this Map
+		 *            contains.
 		 * @param key
 		 *            The key the value should be replaced.
 		 * @throws IndexOutOfBoundsException
@@ -2325,8 +2417,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * 
 		 * @param key
 		 * @param value
-		 * @return {@code true} if this {@link ListMap} contained the specified
-		 *         entry.
+		 * @return {@code true} if this Map contained the specified entry.
 		 */
 		public boolean remove(Object key, Object value)
 		{
@@ -2335,8 +2426,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Removes the entry at the index of the duplicated entries that occurs
-		 * in the {@link ListMap}. If there is a {@link ListMap} containing 4
-		 * times exact the same entries , than
+		 * in the Map. If there is a Map containing 4 times exact the same
+		 * entries , than
 		 * {@code listMapEntrySet.remove(2, dupeEntryKey, dupeEntryValue);} will
 		 * remove the third entry that is equal to the specified entry.
 		 * 
@@ -2347,11 +2438,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @param value
 		 *            The value of the entry that should be removed.
 		 * @return {@code true} if the specified entry at the index of the
-		 *         specified duplicated entries was present in this
-		 *         {@link ListMap}. So if index < 0 or index > the amount of
-		 *         specified duplicated entries, than False is returned.
+		 *         specified duplicated entries was present in this Map. So if
+		 *         index < 0 or index > the amount of specified duplicated
+		 *         entries, than False is returned.
 		 */
-		public boolean remove(int index, Object key, Object value)
+		public boolean remove(int index, K key, V value)
 		{
 			return ListMap.this.remove(index, key, value);
 		}
@@ -2387,7 +2478,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapEntryIterator} that starts at the begin of
-		 * the {@link ListMap}.
+		 * the Map.
 		 * 
 		 * @return A new {@link ListMapEntryIterator}.
 		 */
@@ -2399,7 +2490,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns a {@link ListMapEntryIterator} that starts at the given
-		 * position in the {@link ListMap}.
+		 * position in the Map.
 		 * 
 		 * @param startIndex
 		 *            The index where this Iterator should start iterating.
@@ -2416,6 +2507,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			return this.entryList.size();
 		}
 
+		/**
+		 * Checks if this EntrySet contains the given key.
+		 * 
+		 * @param key
+		 * @return {@code true} if this Map contains the given key.
+		 */
 		public boolean containsKey(Object key)
 		{
 			for(ListMapEntry<K, V> entry : this.entryList)
@@ -2424,6 +2521,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			return false;
 		}
 
+		/**
+		 * Checks if this Map contains the given value.
+		 * 
+		 * @param key
+		 * @return {@code true} if this Map contains the given value.
+		 */
 		public boolean containsValue(Object value)
 		{
 			for(ListMapEntry<K, V> entry : this.entryList)
@@ -2472,8 +2575,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * @param startIndex
-		 *            The index where this iterator should start in this
-		 *            {@link ListMap}.
+		 *            The index where this iterator should start in this Map.
 		 */
 		public ListMapIterator(int startIndex)
 		{
@@ -2564,48 +2666,52 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			expectedModCount = modCount;
 		}
 	}
-	
+
 	public final class ListMapKeyIterator extends ListMapIterator implements Iterator<K>
 	{
-		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-		public ListMapKeyIterator(int startIndex) 		{ super(startIndex); }
-		public ListMapKeyIterator() 					{ super(); }
+		/** @param startIndex The index where this iterator should start in this Map. */
+		public ListMapKeyIterator(int startIndex)	{super(startIndex);}
+		public ListMapKeyIterator()					{super();}
 		@Override
-		public K next()			 						{ return this.getNextEntry().getKey(); }
-		public K previous()								{ return this.getPreviousEntry().getKey(); }
-		public K current()								{ return super.current.getKey(); }
+		public K next()		{return this.getNextEntry().getKey();}
+		public K previous()	{return this.getPreviousEntry().getKey();}
+		public K current()	{return super.current.getKey();}
 	}
-	
+
 	public final class ListMapValueIterator extends ListMapIterator implements Iterator<V>
 	{
-		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-		public ListMapValueIterator(int startIndex) 	{ super(startIndex); }
-		public ListMapValueIterator() 					{ super(); }
+		/** @param startIndex The index where this iterator should start in this Map. */
+		public ListMapValueIterator(int startIndex)	{super(startIndex);}
+		public ListMapValueIterator()				{super();}
 		@Override
-		public V next()			 						{ return this.getNextEntry().getValue(); }
-		public V previous()								{ return this.getPreviousEntry().getValue(); }
-		public V current()								{ return super.current.getValue(); }
+		public V next()		{return this.getNextEntry().getValue();}
+		public V previous()	{return this.getPreviousEntry().getValue();}
+		public V current()	{return super.current.getValue();}
 	}
-	
+
 	public final class ListMapEntryIterator extends ListMapIterator implements Iterator<ListMapEntry<K, V>>
 	{
-		/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-		public ListMapEntryIterator(int startIndex) 	{ super(startIndex); }
-		public ListMapEntryIterator() 					{ super(); }
+		/** @param startIndex The index where this iterator should start in this Map. */
+		public ListMapEntryIterator(int startIndex)	{super(startIndex);}
+		public ListMapEntryIterator()				{super();}
 		@Override
-		public ListMapEntry<K, V> next()			 	{ return this.getNextEntry(); }
-		public ListMapEntry<K, V> previous()			{ return this.getPreviousEntry(); }
-		public ListMapEntry<K, V> current()				{ return super.current; }
+		public ListMapEntry<K, V> next()		{return this.getNextEntry();}
+		public ListMapEntry<K, V> previous()	{return this.getPreviousEntry();}
+		public ListMapEntry<K, V> current()		{return super.current;}
 	}
-	
+
 	public static abstract class ListMapSpliterator<E>
 	{
 
 		protected final ListMap<?, ?>	listMap;
-		private int						index;				// current index, modified on advance/split
-		private int						lowBoundery;		// -1 if not used; then one past last index
-		private int						highBoundery;		// -1 if not used; then first index inclusive
-		private int						expectedModCount;	// initialized when fence set
+		// current index, modified on advance/split
+		private int						index;
+		// -1 if not used, then one past last index
+		private int						lowBoundery;
+		// -1 if not used; then first index inclusive
+		private int						highBoundery;
+		// initialized when fence set
+		private int						expectedModCount;
 
 		/** Create new spliterator covering the given range */
 		public ListMapSpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
@@ -2648,7 +2754,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			int mid = (this.lowBoundery + this.highBoundery) >>> 1;
 			if(this.lowBoundery >= mid)
 				return null;
-			Spliterator<E> split = getNewSpilterator(this.listMap, this.index < mid ? this.index : mid, this.lowBoundery,  mid);
+			Spliterator<E> split = getNewSpilterator(this.listMap, this.index < mid ? this.index : mid, this.lowBoundery, mid);
 			if(this.index < mid)
 				this.index = mid;
 			this.lowBoundery = mid;
@@ -2807,28 +2913,26 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		private int					fromEntry, toEntry;
 		private boolean				fromStart, toEnd;
-		@SuppressWarnings("unused") private boolean	inclLowEntry, inclHighEntry;
 
 		/**
 		 * @param listMap
-		 *            The {@link ListMap} that is backing up this {@link SubMap}
-		 *            .
+		 *            The Map that is backing up this SubMap .
 		 * @param fromStart
-		 *            Whether this {@link SubMap} should start from the
-		 *            beginning of the backing {@link ListMap}.
+		 *            Whether this SubMap should start from the beginning of the
+		 *            backing Map.
 		 * @param fromKey
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param inclLowKey
 		 *            Whether the key at the given index should be included to
-		 *            this {@link SubMap}.
+		 *            this SubMap.
 		 * @param toEnd
-		 *            Whether this {@link SubMap} should end at the end of the
-		 *            backing {@link ListMap}.
+		 *            Whether this SubMap should end at the end of the backing
+		 *            Map.
 		 * @param toKey
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @param inclHighKey
 		 *            Whether the key at the given index should be included to
-		 *            this {@link SubMap}.
+		 *            this SubMap.
 		 */
 		public SubMap(ListMap<K, V> listMap, boolean fromStart, int fromKey, boolean inclLowKey, boolean toEnd, int toKey, boolean inclHighKey)
 		{
@@ -2837,37 +2941,34 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(!inclLowKey)
 				++fromKey;
 
-			if((fromKey < 0 && !fromStart) || fromKey > listMap.size())
+			if((fromKey < 0 && !fromStart) || fromKey >= listMap.size())
 				throw new IndexOutOfBoundsException(String.format("LowerKeyIndex: %s. Size: %s", fromKey, listMap.size()));
-			if((toKey < 0 && !toEnd) || toKey > listMap.size())
+			if((toKey < 0 && !toEnd) || toKey >= listMap.size())
 				throw new IndexOutOfBoundsException(String.format("HigherKeyIndex: %s. Size: %s", toKey, listMap.size()));
 			if(toKey < fromKey && !fromStart && !toEnd)
 				throw new IllegalArgumentException("HigherKeyIndex < LowerKeyIndex");
 
 			this.listMap = listMap;
-			this.inclLowEntry = inclLowKey;
 			this.fromStart = fromStart;
 			this.fromEntry = fromStart ? -1 : fromKey;
-			this.inclHighEntry = inclHighKey;
 			this.toEnd = toEnd;
 			this.toEntry = toEnd ? -1 : toKey;
-			listMap.subMapInstances.add(this);
+			listMap.subMapInstances.add(new WeakReference<ListMap.SubMap<K, V>>(this));
 		}
 
 		/**
 		 * @param listMap
-		 *            The {@link ListMap} that is backing up this {@link SubMap}
-		 *            .
+		 *            The Map that is backing up this SubMap .
 		 * @param fromKey
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param inclLowKey
 		 *            Whether the key at the given index should be included to
-		 *            this {@link SubMap}.
+		 *            this SubMap.
 		 * @param toKey
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @param inclHighKey
 		 *            Whether the key at the given index should be included to
-		 *            this {@link SubMap}.
+		 *            this SubMap.
 		 */
 		public SubMap(ListMap<K, V> listMap, int fromKey, boolean inclLowKey, int toKey, boolean inclHighKey)
 		{
@@ -2876,23 +2977,21 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * @param listMap
-		 *            The {@link ListMap} that is backing up this {@link SubMap}
-		 *            .
+		 *            The Map that is backing up this SubMap .
 		 * @param fromKey
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param toKey
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 */
 		public SubMap(ListMap<K, V> listMap, int fromKey, int toKey)
 		{
-			this(listMap, false, fromKey, true, false, toKey, true);
+			this(listMap, false, fromKey, true, false, toKey, false);
 		}
 
 		/**
-		 * Adds an Entry at the end of this {@link SubMap} with the given key
-		 * and value. The {@link SubMap SubMaps} boundaries ({@link #toEntry})
-		 * will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
+		 * Adds an Entry at the end of this SubMap with the given key and value.
+		 * The SubMaps boundaries ({@link #toEntry}) will be adjusted to keep
+		 * the keys inside the range of this SubMap.
 		 * 
 		 * @param key
 		 * @param value
@@ -2902,14 +3001,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(this.toEnd)
 				this.listMap.add(key, value);
 			else this.listMap.put(this.toEntry + 1, key, value);
+			// toEntry++ because it falls outside the rangeCheck.
+			this.toEntry++;
 		}
 
 		/**
-		 * Adds the entries from the given {@link Map} at the end of this
-		 * {@link SubMap} in the order the {@link Iterator} is presenting the
-		 * map entries The {@link SubMap SubMaps} boundaries ({@link #toEntry})
-		 * will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
+		 * Adds the entries from the given Map at the end of this SubMap in the
+		 * order the Iterator is presenting the map entries The SubMaps
+		 * boundaries ({@link #toEntry}) will be adjusted to keep the keys
+		 * inside the range of this SubMap.
 		 */
 		public void addAll(Map<? extends K, ? extends V> map)
 		{
@@ -2917,21 +3017,27 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * @deprecated This method is enhanced for the sake of {@link ListMap}
-		 *             ordering. Use {@link #put(int, Object, Object)} instead.
-		 * @see #put(int, Object, Object)
+		 * Puts a new Entry at the end of this SubMap. In contrast to the
+		 * 'usual' behavior of a Map, this method won't replace any values.
+		 * 
+		 * @param key
+		 *            The key of the new entry.
+		 * @param value
+		 *            The value of the new entry.
+		 * @return Always {@code null}
 		 */
 		@Override
 		public V put(K key, V value)
 		{
+			this.put(this.size(), key, value);
 			return null;
 		}
 
 		/**
-		 * Puts a new Entry at the given index in this {@link SubMap}. and
-		 * shifts the remaining entries in the {@link ListMap} by one. The
-		 * {@link SubMap SubMaps} boundaries ({@link #toEntry}) will be adjusted
-		 * to keep the keys inside the range of this {@link SubMap}.
+		 * Puts a new Entry at the given index in this SubMap. and shifts the
+		 * remaining entries in the Map by one. The {@link SubMap SubMaps}
+		 * boundaries ({@link #toEntry}) will be adjusted to keep the keys
+		 * inside the range of this SubMap.
 		 * 
 		 * @param index
 		 *            The position where this entry should be put in this
@@ -2952,30 +3058,31 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * @deprecated This method is enhanced for the sake of {@link ListMap}
-		 *             ordering. Use {@link #putAll(int, Map)} instead.
-		 * @see #putAll(int, Map)
+		 * Puts in all the given entries from the given Map in the order the
+		 * Iterator is presenting the Map's entries.
+		 * 
+		 * @param map
+		 *            The map of entries that should be placed into this Map.
 		 */
 		@Override
 		public void putAll(Map<? extends K, ? extends V> m)
 		{
+			m.entrySet().forEach(E -> this.add(E.getKey(), E.getValue()));
 		}
 
 		/**
-		 * Puts all the given entries from the given map in the order the
-		 * {@link Iterator} is presenting the {@link Map} entries, starting from
-		 * the given index. The remaining entries that were already in the list
-		 * will shift the amount of entries that are present in the given
-		 * {@link Map}. The {@link SubMap SubMaps} boundaries ({@link #toEntry})
-		 * will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
+		 * Puts in all the given entries from the given map in the order the
+		 * Iterator is presenting the Map entries, starting from the given
+		 * index. The remaining entries that were already in the list will shift
+		 * the amount of entries that are present in the given Map. The SubMaps
+		 * boundaries ({@link #toEntry}) will be adjusted to keep the keys
+		 * inside the range of this SubMap.
 		 * 
 		 * @param index
 		 *            The index where to start in this {@link SubMap SUBMAP},
 		 *            implementing the given map entries.
 		 * @param map
-		 *            The map of entries that should be placed into this
-		 *            {@link ListMap}.
+		 *            The map of entries that should be placed into this Map.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > {@link #size()}
 		 */
@@ -2992,49 +3099,61 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * @deprecated Since this map supports both key and value replacing,
-		 *             this method is split up in multiple methods
+		 * Replaces the value of the first entry with the same value and key as
+		 * the given key and Value.
 		 * 
 		 * @param key
+		 *            The key of the entry that the value should be set of.
 		 * @param oldValue
+		 *            The value the entry should have.
 		 * @param newValue
-		 * @return {@code false}
-		 * 
-		 * @see #setValue(int, Object)
-		 * @see #setValue(Object, Object)
-		 * @see #setValue(int, Object, Object)
-		 * 
-		 * @see #replaceKey(int, Object)
-		 * @see #replaceKey(Object, Object)
-		 * @see #replaceKey(int, Object, Object)
+		 *            The new value that should be bound to the specific entry.
+		 * @return {@code true} if the specified entry was present in this Map,
+		 *         and its value was replaced.
 		 */
 		@Override
 		public boolean replace(K key, V oldValue, V newValue)
 		{
+			ListMapEntry<K, V> entry;
+
+			for(int i = (this.fromStart ? 0 : this.fromEntry); i < (this.toEnd ? this.listMap.size() : this.toEntry + 1); i++)
+			{
+				entry = this.listMap.entrySet.entryList.get(i);
+
+				if(entry.compareKey(key))
+					if(entry.compareValue(oldValue))
+					{
+						this.listMap.setValue(i, newValue);
+						return true;
+					}
+			}
 			return false;
 		}
 
 		/**
-		 * @deprecated Since this map supports both key and value replacing,
-		 *             this method is split up in multiple methods.
+		 * Replaces the value of the first Entry with the given key.
 		 * 
 		 * @param key
-		 * @param oldValue
-		 * @param newValue
-		 * @return {@code false}
-		 * 
-		 * @see #setValue(int, Object)
-		 * @see #setValue(Object, Object)
-		 * @see #setValue(int, Object, Object)
-		 * 
-		 * @see #replaceKey(int, Object)
-		 * @see #replaceKey(Object, Object)
-		 * @see #replaceKey(int, Object, Object)
+		 *            The key which value should be bound to.
+		 * @param value
+		 *            The value to be bound.
+		 * @return The value that was previously bound to the given key, or
+		 *         {@code null} if there was no mapping for the given key. Note
+		 *         that a returned {@code null} value might also mean that the
+		 *         previous value was {@code null}!
 		 */
 		@Override
 		public V replace(K key, V value)
 		{
-			return null;
+			if(!this.containsKey(key))
+				throw new NullPointerException("Couldn't find the given key!");
+
+			for(int i = (this.fromStart ? 0 : this.fromEntry); i < (this.toEnd ? this.listMap.size() : this.toEntry + 1); i++)
+			{
+				if(this.listMap.entrySet.entryList.get(i).compareKey(key))
+					return this.listMap.setValue(i, value);
+			}
+			throw new NullPointerException("Couldn't find the given key!");
 		}
 
 		/**
@@ -3065,9 +3184,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The key which value should be bound to.
 		 * @param value
 		 *            The value to be bound.
-		 * @return The value that was previously bound to the given key.
-		 * @throws NullPointerException
-		 *             If this {@link ListMap} does not contain the given key.
+		 * @return The value that was previously bound to the given key, or
+		 *         {@code null} if there was no mapping in this SubMap for the
+		 *         given key. Note that a returned {@code null} value might also
+		 *         mean that the previous value was {@code null}!
 		 */
 		public V setValue(K key, V value)
 		{
@@ -3079,20 +3199,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(this.listMap.entrySet.entryList.get(i).compareKey(key))
 					return this.listMap.setValue(i, value);
 			}
-			throw new NullPointerException("Couldn't find the given key!");
+			return null;
 		}
 
 		/**
 		 * Sets the value of the key at the index of the duplicated keys that
-		 * occurs in the {@link SubMap SUBMAP}. If there is a {@link SubMap}
-		 * containing 4 times Object {@code exampleKey}, than
+		 * occurs in the {@link SubMap SUBMAP}. If there is a SubMap containing
+		 * 4 times Object {@code exampleKey}, than
 		 * {@code subMap.setValue(2, exampleKey, value);} will set the value of
 		 * the third key that is equal to {@code exampleKey}. If the given index
 		 * is bigger than the amount of duplicated keys, an exception is thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link SubMap} contains.
+		 *            The index of this key of the duplicated keys this SubMap
+		 *            contains.
 		 * @param key
 		 *            The key the value should be bound to.
 		 * @param value
@@ -3129,7 +3249,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @param newValue
 		 *            The new value that should be bound to the specific entry.
 		 * @return {@code true} if the specified entry was present in this
-		 *         {@link SubMap}.
+		 *         SubMap, and its value was replaced.
 		 */
 		public boolean setValue(K key, V oldValue, V newValue)
 		{
@@ -3151,8 +3271,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Sets the value of the entry at the index of the duplicated entries
-		 * that occurs in the {@link SubMap SUBMAP}. If there is a
-		 * {@link SubMap} containing 4 times exact the same entries , than
+		 * that occurs in the {@link SubMap SUBMAP}. If there is a SubMap
+		 * containing 4 times exact the same entries , than
 		 * {@code subMap.setValue(2, dupeEntryKey, dupeEntryValue, newEntryValue);}
 		 * will set the value of the third entry that is equal to the specified
 		 * entry. If the given index is bigger than the amount of the specified
@@ -3167,11 +3287,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value that should be set to the entry.
 		 * @param newValue
 		 *            The new value that should be bound to the specific entry.
+		 * @return {@code true} if the specified entry was present in this
+		 *         SubMap, and its value was replaced.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > the amount of the specified
 		 *             duplicated entries.
 		 */
-		public void setValue(int index, K key, V oldValue, V newValue)
+		public boolean setValue(int index, K key, V oldValue, V newValue)
 		{
 			int frequency = this.entryfrequency(key, oldValue);
 			if(index < 0 || index > frequency)
@@ -3187,9 +3309,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 					if(entry.compareValue(oldValue))
 						--index;
 					if(index < 0)
+					{
 						this.listMap.setValue(i, newValue);
+						return true;
+					}
 				}
 			}
+			return false;
 		}
 
 		/**
@@ -3219,40 +3345,47 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @param key
 		 * @param newKey
 		 *            The Key which the old key should be replaced with.
-		 * @return The key that is replaced.
-		 * @throws NullPointerException
-		 *             If this {@link SubMap} does not contain the given key.
+		 * @return {@code true} if the specified entry was present in this
+		 *         SubMap, and its key was replaced.
+		 * @return {@code true} if the specified entry was present in this
+		 *         SubMap, and its key was replaced.
 		 */
-		public void replaceKey(K key, K newKey)
+		public boolean replaceKey(K key, K newKey)
 		{
 			if(!this.listMap.keySet.contains(key))
 				throw new NullPointerException("Couldn't find the given key!");
 
 			for(int i = (this.fromStart ? 0 : this.fromEntry); i < (this.toEnd ? this.listMap.size() : this.toEntry + 1); i++)
 				if(this.listMap.entrySet.entryList.get(i).compareKey(key))
+				{
 					this.listMap.replaceKey(i, newKey);
+					return true;
+				}
+			return false;
 		}
 
 		/**
 		 * Replaces the key at the index of the duplicated keys that occurs in
-		 * the {@link SubMap SUBMAP}. If there is a {@link SubMap} containing 4
-		 * times Object {@code exampleKey}, than
+		 * the {@link SubMap SUBMAP}. If there is a SubMap containing 4 times
+		 * Object {@code exampleKey}, than
 		 * {@code subMap.replaceKey(2, exampleKey, value);} will replace the
 		 * third key that is equal to {@code exampleKey}. If the given index is
 		 * bigger than the amount of duplicated keys, an exception is thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link SubMap} contains.
+		 *            The index of this key of the duplicated keys this SubMap
+		 *            contains.
 		 * @param key
 		 *            The key the value should be replaced.
 		 * @param newKey
 		 *            The new key.
+		 * @return {@code true} if the specified entry was present in this
+		 *         SubMap, and its key was replaced.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > amount of keys that are equal to
 		 *             the given key.
 		 */
-		public void replaceKey(int index, K key, K newKey)
+		public boolean replaceKey(int index, K key, K newKey)
 		{
 			int frequency = this.keyfrequency(key);
 			if(index < 0 || index > frequency)
@@ -3263,8 +3396,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(this.listMap.entrySet.entryList.get(i).compareKey(key))
 					--index;
 				if(index < 0)
+				{
 					this.listMap.replaceKey(i, newKey);
+					return true;
+				}
 			}
+			return false;
 		}
 
 		/**
@@ -3278,7 +3415,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @param newKey
 		 *            The new Key that should be set to the specific entry.
 		 * @return {@code true} if the specified entry was present in this
-		 *         {@link SubMap}.
+		 *         SubMap, and its key was replaced.
 		 */
 		public boolean replaceKey(K oldKey, V value, K newKey)
 		{
@@ -3298,8 +3435,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Sets the Key of the entry at the index of the duplicated entries that
-		 * occurs in the {@link SubMap}. If there is a {@link SubMap} containing
-		 * 4 times exact the same entries , than
+		 * occurs in the SubMap. If there is a SubMap containing 4 times exact
+		 * the same entries , than
 		 * {@code subMap.replaceKey(2, dupeEntryKey, dupeEntryValue, newEntryKey);}
 		 * will set the key of the third entry that is equal to the specified
 		 * entry. If the given index is bigger than the amount of the specified
@@ -3313,11 +3450,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *            The value of the entry that the should be set from.
 		 * @param newKey
 		 *            The new key that should be set to the specific entry.
+		 * @return {@code true} if the specified entry was present in this
+		 *         SubMap, and its key was replaced.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > the amount of the specified
 		 *             duplicated entries.
 		 */
-		public void replaceKey(int index, K oldKey, V value, K newKey)
+		public boolean replaceKey(int index, K oldKey, V value, K newKey)
 		{
 			int frequency = this.entryfrequency(oldKey, value);
 			if(index < 0 || index > frequency)
@@ -3332,14 +3471,18 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 					if(entry.compareValue(value))
 						--index;
 					if(index < 0)
+					{
 						this.listMap.replaceKey(i, newKey);
+						return true;
+					}
 				}
 			}
+			return false;
 		}
 
 		/**
-		 * The {@link SubMap SubMaps} boundaries ({@link #toEntry}) will be
-		 * adjusted to keep the keys inside the range of this {@link SubMap}.
+		 * The SubMaps boundaries ({@link #toEntry}) will be adjusted to keep
+		 * the keys inside the range of this SubMap.
 		 * 
 		 * @param index
 		 *            The index of the entry that should be removed.
@@ -3356,9 +3499,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * This will remove the first entry with a key that is equal to the
-		 * given key. The {@link SubMap SubMaps} boundaries ({@link #toEntry})
-		 * will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
+		 * given key. The SubMaps boundaries ({@link #toEntry}) will be adjusted
+		 * to keep the keys inside the range of this SubMap.
 		 * 
 		 * @param key
 		 *            The key of the entry that should be removed.
@@ -3366,7 +3508,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 *         the wrong value, or null if the map was modified before the
 		 *         specified entry could be removed properly.
 		 * @throws NullPointerException
-		 *             If this {@link SubMap} does not contain the given key.
+		 *             If this SubMap does not contain the given key.
 		 */
 		@Override
 		public V remove(Object key)
@@ -3390,18 +3532,18 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Removes the Entry with the key at the index of the duplicated keys
-		 * that occurs in the map. If there is a {@link SubMap} containing 4
-		 * times Object {@code exampleKey}, than
-		 * {@code subMap.remove(2, exampleKey);} will remove the third entry
-		 * with the key that is equal to {@code exampleKey}. If the given index
-		 * is bigger than the amount of duplicated keys, an exception is thrown.
+		 * that occurs in the map. If there is a SubMap containing 4 times
+		 * Object {@code exampleKey}, than {@code subMap.remove(2, exampleKey);}
+		 * will remove the third entry with the key that is equal to
+		 * {@code exampleKey}. If the given index is bigger than the amount of
+		 * duplicated keys, an exception is thrown.
 		 * 
-		 * The {@link SubMap SubMaps} boundaries ({@link #toEntry}) will be
-		 * adjusted to keep the keys inside the range of this {@link SubMap}.
+		 * The SubMaps boundaries ({@link #toEntry}) will be adjusted to keep
+		 * the keys inside the range of this SubMap.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link SubMap} contains.
+		 *            The index of this key of the duplicated keys this SubMap
+		 *            contains.
 		 * @param key
 		 *            The key the value should be replaced.
 		 * @return The value of the removed entry. Warning, this might return
@@ -3437,9 +3579,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * {@inheritDoc} The {@link SubMap SubMaps} boundaries ({@link #toEntry}
-		 * ) will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
+		 * {@inheritDoc} The SubMaps boundaries ({@link #toEntry} ) will be
+		 * adjusted to keep the keys inside the range of this SubMap.
 		 */
 		@Override
 		public boolean remove(Object key, Object value)
@@ -3460,13 +3601,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Removes the entry at the index of the duplicated entries that occurs
-		 * in the {@link SubMap}. If there is a {@link SubMap} containing 4
-		 * times exact the same entries , than
+		 * in the SubMap. If there is a SubMap containing 4 times exact the same
+		 * entries , than
 		 * {@code subMap.remove(2, dupeEntryKey, dupeEntryValue);} will remove
 		 * the second entry that is equal to the specified entry.
 		 * 
-		 * The {@link SubMap SubMaps} boundaries ({@link #toEntry}) will be
-		 * adjusted to keep the keys inside the range of this {@link SubMap}.
+		 * The SubMaps boundaries ({@link #toEntry}) will be adjusted to keep
+		 * the keys inside the range of this SubMap.
 		 * 
 		 * @param index
 		 *            The index of the entry of the duplicated entries.
@@ -3475,9 +3616,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * @param value
 		 *            The value of the entry that should be removed.
 		 * @return {@code true} if the specified entry at the index of the
-		 *         specified duplicated entries was present in this
-		 *         {@link SubMap}. So if index < 0 or index > the amount of
-		 *         specified duplicated entries, than False is returned.
+		 *         specified duplicated entries was present in this SubMap. So
+		 *         if index < 0 or index > the amount of specified duplicated
+		 *         entries, than False is returned.
 		 */
 		@SuppressWarnings("unchecked")
 		// because of frequency check
@@ -3504,7 +3645,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		/**
 		 * Removes all the entries with this specific key. The {@link SubMap
 		 * SubMaps} boundaries ({@link #toEntry}) will be adjusted to keep the
-		 * keys inside the range of this {@link SubMap}.
+		 * keys inside the range of this SubMap.
 		 * 
 		 * @param key
 		 * @return The amount of entries that have been removed.
@@ -3527,9 +3668,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Removes all the entries with the specific key and value. The
-		 * {@link SubMap SubMaps} boundaries ({@link #toEntry}) will be adjusted
-		 * to keep the keys inside the range of this {@link SubMap}.
+		 * Removes all the entries with the specific key and value. The SubMaps
+		 * boundaries ({@link #toEntry}) will be adjusted to keep the keys
+		 * inside the range of this SubMap.
 		 * 
 		 * @param key
 		 * @param value
@@ -3553,11 +3694,6 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			return removedAmount;
 		}
 
-		/**
-		 * {@inheritDoc} The {@link SubMap SubMaps} boundaries ({@link #toEntry}
-		 * ) will be adjusted to keep the keys inside the range of this
-		 * {@link SubMap}.
-		 */
 		@Override
 		public void clear()
 		{
@@ -3591,8 +3727,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * given key.
 		 * 
 		 * @param key
-		 * @return The value bound to the given key, or null if the
-		 *         {@link SubMap} does not contain the given key
+		 * @return The value bound to the given key, or null if the SubMap does
+		 *         not contain the given key
 		 */
 		@Override
 		public V get(Object key)
@@ -3609,12 +3745,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		 * thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link SubMap} contains.
+		 *            The index of this key of the duplicated keys this SubMap
+		 *            contains.
 		 * @param key
 		 *            The key the value is bound to.
 		 * @return The value that is bound to the given key, at the index of the
-		 *         duplicated keys in this {@link SubMap}.
+		 *         duplicated keys in this SubMap.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > amount of keys that are equal to
 		 *             the given key.
@@ -3626,13 +3762,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		/**
 		 * Returns the value of the first entry with a key thats equal to the
-		 * given key, or the default value if the {@link SubMap} does not
-		 * contain the given key.
+		 * given key, or the default value if the SubMap does not contain the
+		 * given key.
 		 * 
 		 * @param key
 		 * @param defaultValue
 		 * @return The value bound to the given key, or the default value if the
-		 *         {@link SubMap} does not contain the given key.
+		 *         SubMap does not contain the given key.
 		 */
 		@Override
 		public V getOrDefault(Object key, V defaultValue)
@@ -3650,20 +3786,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		/**
 		 * This method returns the value of the key at the index of duplicated
 		 * keys. Or the default value if the {@link SubMap SUBMAP} does not
-		 * contain the given key. If there is a {@link SubMap} containing 4
-		 * times Object {@code example}, than {@code subMap.get(Object, 2);}
-		 * will return the value of the third key that is equal to
-		 * {@code example}.If the given index is bigger than the amount of
-		 * duplicated keys, an exception is thrown.
+		 * contain the given key. If there is a SubMap containing 4 times Object
+		 * {@code example}, than {@code subMap.get(Object, 2);} will return the
+		 * value of the third key that is equal to {@code example}.If the given
+		 * index is bigger than the amount of duplicated keys, an exception is
+		 * thrown.
 		 * 
 		 * @param index
-		 *            The index of this key of the duplicated keys this
-		 *            {@link SubMap} contains.
+		 *            The index of this key of the duplicated keys this SubMap
+		 *            contains.
 		 * @param key
 		 *            The key the value is bound to.
 		 * @return The value that is bound to the given key, at the index of the
-		 *         duplicated keys in this {@link SubMap}. or the default value
-		 *         if the {@link SubMap} does not contain the given key.
+		 *         duplicated keys in this SubMap. or the default value if the
+		 *         SubMap does not contain the given key.
 		 * @throws IndexOutOfBoundsException
 		 *             if index < 0 || index > amount of keys that are equal to
 		 *             the given key.
@@ -3689,7 +3825,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 			throw new ConcurrentModificationException();
 		}
-		
+
 		/**
 		 * Returns the key of the entry at the given index.
 		 * 
@@ -3709,7 +3845,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		@Override
 		public int size()
 		{
-			return (this.toEnd ? this.listMap.size() - 1 : this.toEntry) - (this.fromStart ? 0 : this.fromEntry + 1);
+			return (this.toEnd ? this.listMap.size() : this.toEntry + 1) - (this.fromStart ? 0 : this.fromEntry);
 		}
 
 		@Override
@@ -3737,12 +3873,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link Set} view of the mappings contained in this map. The set
-		 * is backed by the map, so changes to the map are reflected in the set, and
-		 * vice-versa. If the map is modified while an iteration over the set is in
-		 * progress (except through the iterator's own <tt>remove</tt> operation, or
-		 * through the <tt>setValue</tt> operation on a map entry returned by the
-		 * iterator) the results of the iteration are undefined.
+		 * Returns a {@link Set} view of the mappings contained in this map. The
+		 * set is backed by the map, so changes to the map are reflected in the
+		 * set, and vice-versa. If the map is modified while an iteration over
+		 * the set is in progress (except through the iterator's own
+		 * <tt>remove</tt> operation, or through the <tt>setValue</tt> operation
+		 * on a map entry returned by the iterator) the results of the iteration
+		 * are undefined.
 		 *
 		 * @return a set view of the mappings contained in this map
 		 */
@@ -3753,12 +3890,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link Set} view of the mappings contained in this map. The set
-		 * is backed by the map, so changes to the map are reflected in the set, and
-		 * vice-versa. If the map is modified while an iteration over the set is in
-		 * progress (except through the iterator's own <tt>remove</tt> operation, or
-		 * through the <tt>setValue</tt> operation on a map entry returned by the
-		 * iterator) the results of the iteration are undefined.
+		 * Returns a {@link Set} view of the mappings contained in this map. The
+		 * set is backed by the map, so changes to the map are reflected in the
+		 * set, and vice-versa. If the map is modified while an iteration over
+		 * the set is in progress (except through the iterator's own
+		 * <tt>remove</tt> operation, or through the <tt>setValue</tt> operation
+		 * on a map entry returned by the iterator) the results of the iteration
+		 * are undefined.
 		 *
 		 * @return a set view of the mappings contained in this map
 		 */
@@ -3769,23 +3907,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * @deprecated Uses a custom generic type for the {@link #entrySet} of
-		 *             {@link #entrySet()}. Use {@link #getEntrySet()} instead.
-		 * @see #getEntrySet()
-		 */
-		@Override
-		public Set<java.util.Map.Entry<K, V>> entrySet()
-		{
-			return null;
-		}
-
-		/**
-		 * Returns a {@link Set} view of the mappings contained in this map. The set
-		 * is backed by the map, so changes to the map are reflected in the set, and
-		 * vice-versa. If the map is modified while an iteration over the set is in
-		 * progress (except through the iterator's own <tt>remove</tt> operation, or
-		 * through the <tt>setValue</tt> operation on a map entry returned by the
-		 * iterator) the results of the iteration are undefined.
+		 * Returns a {@link Set} view of the mappings contained in this map. The
+		 * set is backed by the map, so changes to the map are reflected in the
+		 * set, and vice-versa. If the map is modified while an iteration over
+		 * the set is in progress (except through the iterator's own
+		 * <tt>remove</tt> operation, or through the <tt>setValue</tt> operation
+		 * on a map entry returned by the iterator) the results of the iteration
+		 * are undefined.
 		 *
 		 * @return a set view of the mappings contained in this map
 		 */
@@ -3794,9 +3922,21 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			return new SubMapEntrySet(this);
 		}
 
+		@SuppressWarnings("unchecked")
+		@Override
+		public Set<java.util.Map.Entry<K, V>> entrySet()
+		{
+			// This weird casting is needed since the Compiler doesn't allow
+			// direct
+			// casting of the SubMapEntrySet, while it is valid for the JVM.
+			Object set = new SubMapEntrySet(this);
+			return (Set<java.util.Map.Entry<K, V>>)set;
+		}
+
 		public boolean isIndexInBounderies(int index)
 		{
-			return index >= this.fromEntry && index <= this.toEntry;
+			return this.fromStart ? index >= 0 : index >= this.fromEntry &&
+					this.toEnd ? index <= this.size() : index <= this.toEntry;
 		}
 
 		public int entryfrequency(K key, V value)
@@ -3832,15 +3972,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to
+		 * <code>new SubMap(fromIndex, true, toIndex, false)</code>
 		 * 
 		 * @param fromIndex
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param toIndex
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @return
 		 */
 		public SubMap<K, V> subMap(int fromIndex, int toIndex)
@@ -3849,21 +3991,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.
 		 * 
 		 * @param fromIndex
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param inclusiveLowKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @param toIndex
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @param inclusiveHighKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> subMap(int fromIndex, boolean inclusiveLowKey, int toIndex, boolean inclusiveHighKey)
@@ -3872,17 +4013,19 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to
+		 * <code>new SubMap(fromKey, true, toKey, false)</code>
 		 * 
 		 * @param fromKey
-		 *            The key from where the {@link SubMap} should start. Note
-		 *            that it will pick the first appearance of the given key!
-		 * @param toKey
-		 *            The key where the {@link SubMap} should end. Note that it
+		 *            The key from where the SubMap should start. Note that it
 		 *            will pick the first appearance of the given key!
+		 * @param toKey
+		 *            The key where the SubMap should end. Note that it will
+		 *            pick the first appearance of the given key!
 		 * @return
 		 */
 		public SubMap<K, V> subMap(K fromKey, K toKey)
@@ -3894,17 +4037,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.
 		 * 
 		 * @param fromKey
-		 *            The key from where the {@link SubMap} should start. Note
-		 *            that it will pick the first appearance of the given key!
-		 * @param toKey
-		 *            The key where the {@link SubMap} should end. Note that it
+		 *            The key from where the SubMap should start. Note that it
 		 *            will pick the first appearance of the given key!
+		 * @param toKey
+		 *            The key where the SubMap should end. Note that it will
+		 *            pick the first appearance of the given key!
 		 * @return
 		 */
 		public SubMap<K, V> subMap(K fromKey, boolean inclusiveLowKey, K toKey, boolean inclusiveHighKey)
@@ -3930,21 +4072,21 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to
+		 * <code>new SubMap(fromIndex, true, toIndex, false)</code>
 		 * 
 		 * @param fromKeyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param fromKey
-		 *            The key from where the {@link SubMap} should start.
+		 *            The key from where the SubMap should start.
 		 * @param toKeyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param toKey
-		 *            The key where the {@link SubMap} should end.
+		 *            The key where the SubMap should end.
 		 * @return
 		 */
 		public SubMap<K, V> subMap(int fromKeyIndex, K fromKey, int toKeyIndex, K toKey)
@@ -3953,27 +4095,24 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap} that is backed up by the {@link ListMap}
-		 * that is backing this {@link SubMap}. Every modification that is made
-		 * to the {@link SubMap} is represented in the {@link ListMap} and visa
-		 * versa.
+		 * Returns a SubMap that is backed up by the Map that is backing this
+		 * SubMap. Every modification that is made to the SubMap is represented
+		 * in the Map and visa versa.
 		 * 
 		 * @param fromKeyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param fromKey
-		 *            The key from where the {@link SubMap} should start.
+		 *            The key from where the SubMap should start.
 		 * @param inclusiveLowKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @param toKeyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param toKey
-		 *            The key where the {@link SubMap} should end.
+		 *            The key where the SubMap should end.
 		 * @param inclusiveHighKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> subMap(int fromKeyIndex, K fromKey, boolean inclusiveLowKey, int toKeyIndex, K toKey, boolean inclusiveHighKey)
@@ -4004,12 +4143,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap tailMap} that is backed up by this
-		 * {@link ListMap}. Every modification that is made to the
-		 * {@link SubMap} is represented in the {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap tailMap} that is backed up by this Map. Every
+		 * modification that is made to the SubMap is represented in the Map and
+		 * visa versa.<br>
+		 * <br>
+		 * This is equivalent to <code>new tailMap(fromIndex, true)</code>
 		 * 
 		 * @param fromIndex
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @return
 		 */
 		public SubMap<K, V> tailMap(int fromIndex)
@@ -4018,16 +4159,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap tailMap} that is backed up by the
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap tailMap} that is backed up by the Map that is
+		 * backing this SubMap. Every modification that is made to the SubMap is
+		 * represented in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to <code>new tailMap(fromKey, true)</code>
 		 * 
 		 * @param fromIndex
-		 *            The index from where the {@link SubMap} should start.
+		 *            The index from where the SubMap should start.
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> tailMap(int fromIndex, boolean inclusiveKey)
@@ -4036,17 +4178,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap tailMap} that is backed up by the
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap tailMap} that is backed up by the Map that is
+		 * backing this SubMap. Every modification that is made to the SubMap is
+		 * represented in the Map and visa versa.
 		 * 
 		 * @param key
-		 *            The key from where the {@link SubMap} should start. Note
-		 *            that it will pick the first appearance of the given key!
+		 *            The key from where the SubMap should start. Note that it
+		 *            will pick the first appearance of the given key!
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> tailMap(K key, boolean inclusiveKey)
@@ -4061,19 +4202,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap tailMap} that is backed up by the
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap tailMap} that is backed up by the Map that is
+		 * backing this SubMap. Every modification that is made to the SubMap is
+		 * represented in the Map and visa versa.
 		 * 
 		 * @param keyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param key
-		 *            The key from where the {@link SubMap} should start.
+		 *            The key from where the SubMap should start.
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> tailMap(int keyIndex, K key, boolean inclusiveKey)
@@ -4092,13 +4231,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap headMap} that is backed up by this
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap headMap} that is backed up by this Map that
+		 * is backing this SubMap. Every modification that is made to the SubMap
+		 * is represented in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to <code>new headMap(toIndex, false)</code>
 		 * 
 		 * @param toIndex
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @return
 		 */
 		public SubMap<K, V> headMap(int toIndex)
@@ -4107,16 +4247,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap headMap} that is backed up by this
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap headMap} that is backed up by this Map that
+		 * is backing this SubMap. Every modification that is made to the SubMap
+		 * is represented in the Map and visa versa.<br>
+		 * <br>
+		 * This is equivalent to <code>new headMap(toKey, false)</code>
 		 * 
 		 * @param toIndex
-		 *            The index where the {@link SubMap} should end.
+		 *            The index where the SubMap should end.
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> headMap(int toIndex, boolean inclusiveKey)
@@ -4125,17 +4266,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap headMap} that is backed up by this
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap headMap} that is backed up by this Map that
+		 * is backing this SubMap. Every modification that is made to the SubMap
+		 * is represented in the Map and visa versa.
 		 * 
 		 * @param key
-		 *            The key where the {@link SubMap} should end. Note that it
-		 *            will pick the first appearance of the given key!
+		 *            The key where the SubMap should end. Note that it will
+		 *            pick the first appearance of the given key!
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> headMap(K key, boolean inclusiveKey)
@@ -4150,19 +4290,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		}
 
 		/**
-		 * Returns a {@link SubMap headMap} that is backed up by this
-		 * {@link ListMap} that is backing this {@link SubMap}. Every
-		 * modification that is made to the {@link SubMap} is represented in the
-		 * {@link ListMap} and visa versa.
+		 * Returns a {@link SubMap headMap} that is backed up by this Map that
+		 * is backing this SubMap. Every modification that is made to the SubMap
+		 * is represented in the Map and visa versa.
 		 * 
 		 * @param keyIndex
-		 *            The given key's index of the duplicated keys in this
-		 *            {@link ListMap}.
+		 *            The given key's index of the duplicated keys in this Map.
 		 * @param key
-		 *            The key where the {@link SubMap} should end.
+		 *            The key where the SubMap should end.
 		 * @param inclusiveKey
 		 *            Whether the key at the given index should be included to
-		 *            the {@link SubMap}.
+		 *            the SubMap.
 		 * @return
 		 */
 		public SubMap<K, V> headMap(int keyIndex, K key, boolean inclusiveKey)
@@ -4206,8 +4344,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Adds the keys inside the Collection at the end of this
-			 * {@link SubMap}. The values will be set to null
+			 * Adds the keys inside the Collection at the end of this SubMap.
+			 * The values will be set to null
 			 * 
 			 * @param key
 			 * @return Always {@code true}
@@ -4221,8 +4359,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Puts an Entry with the given key at the given index in of this
-			 * {@link SubMap}, and shifts the remaining entries by one. The
-			 * value will be null.
+			 * SubMap, and shifts the remaining entries by one. The value will
+			 * be null.
 			 * 
 			 * @param index
 			 * @param key
@@ -4234,7 +4372,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Puts All the given keys in this {@link SubMap} starting at the
+			 * Puts All the given keys in this SubMap starting at the
 			 * beginIndex, and shifts the remaining entries by the amount of
 			 * added entries.
 			 * 
@@ -4251,7 +4389,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Replaces the key at the given index in this {@link SubMap}.
+			 * Replaces the key at the given index in this SubMap.
 			 * 
 			 * @param index
 			 *            The index of the key that should be replaced.
@@ -4267,23 +4405,23 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Replaces the first appearance of the given key in this
-			 * {@link SubMap}.
+			 * Replaces the first appearance of the given key in this SubMap.
 			 * 
 			 * @param oldKey
 			 *            The key that should be replaced.
 			 * @param newKey
 			 *            The new key.
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its key was replaced.
 			 */
-			public void replace(K oldKey, K newKey)
+			public boolean replace(K oldKey, K newKey)
 			{
-				this.subMap.replaceKey(oldKey, newKey);
+				return this.subMap.replaceKey(oldKey, newKey);
 			}
 
 			/**
 			 * This method replaces the key at the index of duplicated keys. If
-			 * there is a {@link SubMap} containing 4 times Object
-			 * {@code example}, than
+			 * there is a SubMap containing 4 times Object {@code example}, than
 			 * {@code subMapKeySet.replace(2, oldKey, newKey);} will replace the
 			 * the third key that is equal to {@code example}.If the given index
 			 * is bigger than the amount of duplicated keys, an exception is
@@ -4292,13 +4430,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * @param index
 			 * @param oldKey
 			 * @param newKey
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its key was replaced.
 			 * @throws IndexOutOfBoundsException
 			 *             If index < 0 || index > amount of keys that are equal
 			 *             to the given key.
 			 */
-			public void replace(int index, K oldKey, K newKey)
+			public boolean replace(int index, K oldKey, K newKey)
 			{
-				this.subMap.replaceKey(index, oldKey, newKey);
+				return this.subMap.replaceKey(index, oldKey, newKey);
 			}
 
 			/**
@@ -4317,8 +4457,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * 
 			 * @param key
 			 *            The key of the entry that should be removed
-			 * @return {@code true} if this {@link SubMap} contained the given
-			 *         key.
+			 * @return {@code true} if this SubMap contained the given key.
 			 */
 			@Override
 			public boolean remove(Object key)
@@ -4333,28 +4472,25 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * This method removes the entry with the given key at the index of
-			 * duplicated keys. If there is a {@link SubMap} containing 4 times
-			 * Object {@code example}, than
-			 * {@code subMapKeySet.remove(2, example);} will remove the third
-			 * entry with the key that is equal to {@code example} .If the given
-			 * index is bigger than the amount of duplicated keys, an exception
-			 * is thrown.
+			 * duplicated keys. If there is a SubMap containing 4 times Object
+			 * {@code example}, than {@code subMapKeySet.remove(2, example);}
+			 * will remove the third entry with the key that is equal to
+			 * {@code example} .If the given index is bigger than the amount of
+			 * duplicated keys, an exception is thrown.
 			 * 
 			 * @param index
 			 *            The index of the duplicated keys that should be
 			 *            removed
 			 * @param key
 			 *            The key of the entry that should be removed
-			 * @return {@code true} if this {@link SubMap} contained the given
-			 *         key.
+			 * @return {@code true} if this SubMap contained the given key.
 			 * @throws IndexOutOfBoundsException
 			 *             If index < 0 || index > amount of keys that are equal
 			 *             to the given key.
 			 */
-			public boolean remove(int index, Object key)
+			public boolean remove(int index, K key)
 			{
-				@SuppressWarnings("unchecked")
-				int frequency = this.subMap.keyfrequency((K)key);
+				int frequency = this.subMap.keyfrequency(key);
 				if(index < 0 || index > frequency)
 					throw new IndexOutOfBoundsException(String.format("Index: %s, frequency: %s", index, frequency));
 
@@ -4367,7 +4503,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Removes all the entries in the {@link SubMap} with the given key.
+			 * Removes all the entries in the SubMap with the given key.
 			 * 
 			 * @param key
 			 *            The key to check for if an entry should be deleted.
@@ -4379,7 +4515,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * This method clears all the entries from this {@link SubMap}.
+			 * This method clears all the entries from this SubMap.
 			 */
 			@Override
 			public void clear()
@@ -4389,9 +4525,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapKeyIterator} that starts at the begin of
-			 * the {@link SubMap}.
+			 * the SubMap.
 			 * 
-			 * @return A new {@link SubMapKeyIterator}.
+			 * @return A new SubMapKeyIterator.
 			 */
 			@Override
 			public Iterator<K> iterator()
@@ -4401,11 +4537,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapKeyIterator} that starts at the given
-			 * position in the {@link SubMap}.
+			 * position in the SubMap.
 			 * 
 			 * @param startIndex
 			 *            The index where this Iterator should start iterating.
-			 * @return A new {@link SubMapKeyIterator}.
+			 * @return A new SubMapKeyIterator.
 			 */
 			public Iterator<K> iterator(int startIndex)
 			{
@@ -4451,8 +4587,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Adds the values inside the Collection at the end of this
-			 * {@link SubMap}. The keys will be set to null
+			 * Adds the values inside the Collection at the end of this SubMap.
+			 * The keys will be set to null
 			 * 
 			 * @param key
 			 * @return Always {@code true}
@@ -4466,8 +4602,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Puts an Entry with the given value at the given index in of this
-			 * {@link SubMap}, and shifts the remaining entries by one. The key
-			 * will be null.
+			 * SubMap, and shifts the remaining entries by one. The key will be
+			 * null.
 			 * 
 			 * @param index
 			 * @param key
@@ -4479,7 +4615,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Puts All the given values in this {@link SubMap} starting at the
+			 * Puts All the given values in this SubMap starting at the
 			 * beginIndex, and shifts the remaining entries by the amount of
 			 * added entries.
 			 * 
@@ -4496,7 +4632,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Sets the value at the given index in this {@link SubMap}.
+			 * Sets the value at the given index in this SubMap.
 			 * 
 			 * @param index
 			 *            The index of the value that should be replaced.
@@ -4523,8 +4659,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Removes all the entries in the {@link SubMap} with the given
-			 * value.
+			 * Removes all the entries in the SubMap with the given value.
 			 * 
 			 * @param value
 			 *            The value to check for if an entry should be deleted.
@@ -4547,7 +4682,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * This method clears all the entries from this {@link SubMap}.
+			 * This method clears all the entries from this SubMap.
 			 */
 			@Override
 			public void clear()
@@ -4557,9 +4692,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapValueIterator} that starts at the begin of
-			 * the {@link SubMap}.
+			 * the SubMap.
 			 * 
-			 * @return A new {@link SubMapValueIterator}.
+			 * @return A new SubMapValueIterator.
 			 */
 			@Override
 			public Iterator<V> iterator()
@@ -4569,11 +4704,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapValueIterator} that starts at the given
-			 * position in the {@link SubMap}.
+			 * position in the SubMap.
 			 * 
 			 * @param startIndex
 			 *            The index where this Iterator should start iterating.
-			 * @return A new {@link SubMapValueIterator}.
+			 * @return A new SubMapValueIterator.
 			 */
 			public Iterator<V> iterator(int startIndex)
 			{
@@ -4614,7 +4749,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				return true;
 			}
 
-			/** Adds a new entry at the end of this {@link SubMap} */
+			/** Adds a new entry at the end of this SubMap */
 			public void add(K key, V value)
 			{
 				this.subMap.add(key, value);
@@ -4632,9 +4767,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Adds the entries from the given {@link Map} at the end of this
-			 * {@link ListMap} in the order the {@link Iterator} is presenting
-			 * the map entries
+			 * Adds the entries from the given Map at the end of this Map in the
+			 * order the Iterator is presenting the map entries
 			 */
 			public void addAll(Map<? extends K, ? extends V> map)
 			{
@@ -4642,8 +4776,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Puts a new Entry at the given index in this {@link SubMap}. and
-			 * shifts the remaining entries in the {@link SubMap} by one.
+			 * Puts a new Entry at the given index in this SubMap. and shifts
+			 * the remaining entries in the SubMap by one.
 			 * 
 			 * @param index
 			 *            The position where this entry should be put.
@@ -4661,16 +4795,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Puts all the given entries from the given map in the order the
-			 * {@link Iterator} is presenting the {@link Map} entries, starting
-			 * from the given index. The remaining entries that were already in
-			 * the list will shift the amount of entries that are present in the
-			 * given {@link Map}.
+			 * Iterator is presenting the Map entries, starting from the given
+			 * index. The remaining entries that were already in the list will
+			 * shift the amount of entries that are present in the given Map.
 			 * 
 			 * @param index
 			 *            The index where to start implementing the given map
 			 * @param map
 			 *            The map of entries that should be placed into this
-			 *            {@link SubMap}.
+			 *            SubMap.
 			 * @throws IndexOutOfBoundsException
 			 *             if index < 0 || index > {@link #size()}
 			 */
@@ -4704,8 +4837,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 *            The value to be bound.
 			 * @return The value that was previously bound to the given key.
 			 * @throws NullPointerException
-			 *             If this {@link SubMap} does not contain the given
-			 *             key.
+			 *             If this SubMap does not contain the given key.
 			 */
 			public V setValue(K key, V value)
 			{
@@ -4714,8 +4846,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Sets the value of the key at the index of the duplicated keys
-			 * that occurs in the map. If there is a {@link SubMap} containing 4
-			 * times Object {@code exampleKey}, than
+			 * that occurs in the map. If there is a SubMap containing 4 times
+			 * Object {@code exampleKey}, than
 			 * {@code subMapEntrySet.setValue(2, exampleKey, value);} will set
 			 * the value of the third key that is equal to {@code exampleKey}.
 			 * If the given index is bigger than the amount of duplicated keys,
@@ -4723,7 +4855,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * 
 			 * @param index
 			 *            The index of this key of the duplicated keys this
-			 *            {@link SubMap} contains.
+			 *            SubMap contains.
 			 * @param key
 			 *            The key the value should be bound to.
 			 * @param value
@@ -4750,7 +4882,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 *            The new value that should be bound to the specific
 			 *            entry.
 			 * @return {@code true} if the specified entry was present in this
-			 *         {@link SubMap}.
+			 *         SubMap, and its value was replaced.
 			 */
 			public boolean setValue(K key, V oldValue, V newValue)
 			{
@@ -4759,8 +4891,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Sets the value of the entry at the index of the duplicated
-			 * entries that occurs in the {@link SubMap}. If there is a
-			 * {@link SubMap} containing 4 times exact the same entries , than
+			 * entries that occurs in the SubMap. If there is a SubMap
+			 * containing 4 times exact the same entries , than
 			 * {@code subMapEntrySet.setValue(2, dupeEntryKey, dupeEntryValue, newEntryValue);}
 			 * will set the value of the third entry that is equal to the
 			 * specified entry. If the given index is bigger than the amount of
@@ -4775,17 +4907,19 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * @param newValue
 			 *            The new value that should be bound to the specific
 			 *            entry.
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its value was replaced.
 			 * @throws IndexOutOfBoundsException
 			 *             if index < 0 || index > the amount of the specified
 			 *             duplicated entries.
 			 */
-			public void setValue(int index, K key, V oldValue, V newValue)
+			public boolean setValue(int index, K key, V oldValue, V newValue)
 			{
-				this.subMap.setValue(index, key, oldValue, newValue);
+				return this.subMap.setValue(index, key, oldValue, newValue);
 			}
 
 			/**
-			 * Replaces the key at the given index in this {@link SubMap}.
+			 * Replaces the key at the given index in this SubMap.
 			 * 
 			 * @param index
 			 *            The index of the key that should be replaced.
@@ -4801,26 +4935,26 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			}
 
 			/**
-			 * Replaces the first key in this {@link SubMap} that is equal to
-			 * the given key
+			 * Replaces the first key in this SubMap that is equal to the given
+			 * key
 			 * 
 			 * @param key
 			 * @param newKey
 			 *            The Key which the old key should be replaced with.
-			 * @return The key that is replaced.
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its key was replaced.
 			 * @throws NullPointerException
-			 *             If this {@link SubMap} does not contain the given
-			 *             key.
+			 *             If this SubMap does not contain the given key.
 			 */
-			public void replaceKey(K key, K newKey)
+			public boolean replaceKey(K key, K newKey)
 			{
-				this.subMap.replaceKey(key, newKey);
+				return this.subMap.replaceKey(key, newKey);
 			}
 
 			/**
 			 * Replaces the key at the index of the duplicated keys that occurs
-			 * in the map. If there is a {@link SubMap} containing 4 times
-			 * Object {@code exampleKey}, than
+			 * in the map. If there is a SubMap containing 4 times Object
+			 * {@code exampleKey}, than
 			 * {@code subMapEntrySet.replaceKey(2, exampleKey, value);} will
 			 * replace the third key that is equal to {@code exampleKey}. If the
 			 * given index is bigger than the amount of duplicated keys, an
@@ -4828,18 +4962,20 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * 
 			 * @param index
 			 *            The index of this key of the duplicated keys this
-			 *            {@link SubMap} contains.
+			 *            SubMap contains.
 			 * @param key
 			 *            The key the value should be replaced.
 			 * @param newKey
 			 *            The new key.
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its key was replaced.
 			 * @throws IndexOutOfBoundsException
 			 *             if index < 0 || index > amount of keys that are equal
 			 *             to the given key.
 			 */
-			public void replaceKey(int index, K key, K newKey)
+			public boolean replaceKey(int index, K key, K newKey)
 			{
-				this.subMap.replaceKey(index, key, newKey);
+				return this.subMap.replaceKey(index, key, newKey);
 			}
 
 			/**
@@ -4853,7 +4989,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * @param newKey
 			 *            The new Key that should be set to the specific entry.
 			 * @return {@code true} if the specified entry was present in this
-			 *         {@link SubMap}.
+			 *         SubMap.
 			 */
 			public boolean replaceKey(K oldKey, V value, K newKey)
 			{
@@ -4862,8 +4998,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Sets the Key of the entry at the index of the duplicated entries
-			 * that occurs in the {@link SubMap}. If there is a {@link SubMap}
-			 * containing 4 times exact the same entries , than
+			 * that occurs in the SubMap. If there is a SubMap containing 4
+			 * times exact the same entries , than
 			 * {@code subMapEntrySet.replaceKey(2, dupeEntryKey, dupeEntryValue, newEntryKey);}
 			 * will set the key of the third entry that is equal to the
 			 * specified entry. If the given index is bigger than the amount of
@@ -4877,13 +5013,15 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 *            The value of the entry that the should be set from.
 			 * @param newKey
 			 *            The new key that should be set to the specific entry.
+			 * @return {@code true} if the specified entry was present in this
+			 *         SubMap, and its key was replaced.
 			 * @throws IndexOutOfBoundsException
 			 *             if index < 0 || index > the amount of the specified
 			 *             duplicated entries.
 			 */
-			public void replaceKey(int index, K oldKey, V value, K newKey)
+			public boolean replaceKey(int index, K oldKey, V value, K newKey)
 			{
-				this.subMap.replaceKey(index, oldKey, value, newKey);
+				return this.subMap.replaceKey(index, oldKey, value, newKey);
 			}
 
 			/**
@@ -4899,8 +5037,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Removes the Entry with the key at the index of the duplicated
-			 * keys that occurs in the map. If there is a {@link SubMap}
-			 * containing 4 times Object {@code exampleKey}, than
+			 * keys that occurs in the map. If there is a SubMap containing 4
+			 * times Object {@code exampleKey}, than
 			 * {@code subMapEntrySet.remove(2, exampleKey);} will remove the
 			 * third entry with the key that is equal to {@code exampleKey}. If
 			 * the given index is bigger than the amount of duplicated keys, an
@@ -4908,7 +5046,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * 
 			 * @param index
 			 *            The index of this key of the duplicated keys this
-			 *            {@link SubMap} contains.
+			 *            SubMap contains.
 			 * @param key
 			 *            The key the value should be replaced.
 			 * @throws IndexOutOfBoundsException
@@ -4925,8 +5063,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * 
 			 * @param key
 			 * @param value
-			 * @return {@code true} if this {@link SubMap} contained the
-			 *         specified entry.
+			 * @return {@code true} if this SubMap contained the specified
+			 *         entry.
 			 */
 			public boolean remove(Object key, Object value)
 			{
@@ -4935,8 +5073,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Removes the entry at the index of the duplicated entries that
-			 * occurs in the {@link SubMap}. If there is a {@link SubMap}
-			 * containing 4 times exact the same entries , than
+			 * occurs in the SubMap. If there is a SubMap containing 4 times
+			 * exact the same entries , than
 			 * {@code subMapEntrySet.remove(2, dupeEntryKey, dupeEntryValue);}
 			 * will remove the third entry that is equal to the specified entry.
 			 * 
@@ -4947,9 +5085,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			 * @param value
 			 *            The value of the entry that should be removed.
 			 * @return {@code true} if the specified entry at the index of the
-			 *         specified duplicated entries was present in this
-			 *         {@link SubMap}. So if index < 0 or index > the amount of
-			 *         specified duplicated entries, than False is returned.
+			 *         specified duplicated entries was present in this SubMap.
+			 *         So if index < 0 or index > the amount of specified
+			 *         duplicated entries, than False is returned.
 			 */
 			public boolean remove(int index, Object key, Object value)
 			{
@@ -4987,9 +5125,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapEntryIterator} that starts at the begin of
-			 * the {@link SubMap}.
+			 * the SubMap.
 			 * 
-			 * @return A new {@link SubMapEntryIterator}.
+			 * @return A new SubMapEntryIterator.
 			 */
 			@Override
 			public Iterator<ListMapEntry<K, V>> iterator()
@@ -4999,11 +5137,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			/**
 			 * Returns a {@link SubMapEntryIterator} that starts at the given
-			 * position in the {@link SubMap}.
+			 * position in the SubMap.
 			 * 
 			 * @param startIndex
 			 *            The index where this Iterator should start iterating.
-			 * @return A new {@link SubMapEntryIterator}.
+			 * @return A new SubMapEntryIterator.
 			 */
 			public Iterator<ListMapEntry<K, V>> iterator(int startIndex)
 			{
@@ -5037,11 +5175,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			/**
 			 * @param startIndex
 			 *            The index where this iterator should start in this
-			 *            {@link ListMap}.
+			 *            Map.
 			 */
 			public SubMapIterator(int startIndex, SubMap<K, V> subMap)
 			{
-				if(startIndex < 0 || startIndex > subMap.size())
+				if(startIndex < 0 || startIndex >= subMap.size())
 					throw new IndexOutOfBoundsException(String.format("StartIndex: %s, Size: %s", startIndex, this.subMap.listMap.entrySet.size()));
 
 				this.subMap = subMap;
@@ -5132,44 +5270,49 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		public final class SubMapKeyIterator extends SubMapIterator implements Iterator<K>
 		{
-			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-			public SubMapKeyIterator(int startIndex, SubMap<K, V> subMap) 		{ super(startIndex, subMap); }
-			public SubMapKeyIterator(SubMap<K, V> subMap) 						{ super(subMap); }
+			/** @param startIndex The index where this iterator should start in this Map. */
+			public SubMapKeyIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
+			public SubMapKeyIterator(SubMap<K, V> subMap)					{super(subMap);}
 			@Override
-			public K next()			 											{ return this.getNextEntry().getKey(); }
-			public K previous()													{ return this.getPreviousEntry().getKey(); }
-			public K current()													{ return super.current.getKey(); }
+			public K next()		{return this.getNextEntry().getKey();}
+			public K previous()	{return this.getPreviousEntry().getKey();}
+			public K current()	{return super.current.getKey();}
 		}
-		
+
 		public final class SubMapValueIterator extends SubMapIterator implements Iterator<V>
 		{
-			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-			public SubMapValueIterator(int startIndex, SubMap<K, V> subMap) 	{ super(startIndex, subMap); }
-			public SubMapValueIterator(SubMap<K, V> subMap) 					{ super(subMap); }
+			/** @param startIndex The index where this iterator should start in this Map. */
+			public SubMapValueIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
+			public SubMapValueIterator(SubMap<K, V> subMap)					{super(subMap);}
 			@Override
-			public V next()			 											{ return this.getNextEntry().getValue(); }
-			public V previous()													{ return this.getPreviousEntry().getValue(); }
-			public V current()													{ return super.current.getValue(); }
+			public V next()		{return this.getNextEntry().getValue();}
+			public V previous()	{return this.getPreviousEntry().getValue();}
+			public V current()	{return super.current.getValue();}
 		}
-		
+
 		public final class SubMapEntryIterator extends SubMapIterator implements Iterator<ListMapEntry<K, V>>
 		{
-			/** @param startIndex The index where this iterator should start in this {@link ListMap}. */
-			public SubMapEntryIterator(int startIndex, SubMap<K, V> subMap) 	{ super(startIndex, subMap); }
-			public SubMapEntryIterator(SubMap<K, V> subMap) 					{ super(subMap); }
+			/** @param startIndex The index where this iterator should start in this Map. */
+			public SubMapEntryIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
+			public SubMapEntryIterator(SubMap<K, V> subMap)					{super(subMap);}
 			@Override
-			public ListMapEntry<K, V> next()			 						{ return this.getNextEntry(); }
-			public ListMapEntry<K, V> previous()								{ return this.getPreviousEntry(); }
-			public ListMapEntry<K, V> current()									{ return super.current; }
+			public ListMapEntry<K, V> next()		{return this.getNextEntry();}
+			public ListMapEntry<K, V> previous()	{return this.getPreviousEntry();}
+			public ListMapEntry<K, V> current()		{return super.current;}
 		}
-		
+
 		public static abstract class SubMapSpliterator<E>
 		{
-	        protected final SubMap<?, ?> 	subMap;
-	        private int 					index; // current index, modified on advance/split
-	        private int 					lowBoundery; // -1 if not used; then one past last index
-	        private int 					highBoundery; // -1 if not used; then first index inclusive
-	        private int 					expectedModCount; // initialized when fence set
+
+			protected final SubMap<?, ?>	subMap;
+			// current index, modified on advance/split
+			private int						index;
+			// -1 if not used; then one past last index
+			private int						lowBoundery;
+			// -1 if not used; then first index inclusive
+			private int						highBoundery;
+			// initialized when fence set
+			private int						expectedModCount;
 
 			/** Create new spliterator covering the given range */
 			public SubMapSpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
