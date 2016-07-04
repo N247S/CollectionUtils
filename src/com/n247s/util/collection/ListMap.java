@@ -5186,8 +5186,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				this.expectedModCount = this.subMap.listMap.modCount;
 				this.index = startIndex;
 				this.current = null;
+				//checks if a previousEntry fits.
 				if(startIndex > 0)
 					this.previous = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + startIndex - 1);
+				//checks if a nextEntry fits.
 				if(startIndex < this.subMap.size() - 1)
 					this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + startIndex + 1);
 			}
@@ -5214,14 +5216,17 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			public ListMapEntry<K, V> getNextEntry()
 			{
+				//Checks if it can advance, and if there are modifications.
 				if(this.next == null)
 					throw new NoSuchElementException();
 				if(this.subMap.listMap.modCount != this.expectedModCount)
 					throw new ConcurrentModificationException();
+				// Checks if its the first iteration, or if previous current was removed.
 				if(this.current != null)
 				{
 					this.previous = this.current;
 					this.current = this.next;
+					//Checks if its hitting the last entry or not.
 					if(this.index < this.subMap.size() - 2)
 						this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + ++this.index + 1);
 					else
@@ -5230,20 +5235,24 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 						++this.index;
 					}
 				}
+				// Current was null, no iteration but population of the current entry.
 				else this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index);
 				return this.current;
 			}
 
 			public ListMapEntry<K, V> getPreviousEntry()
 			{
+				//Checks if it can withdraw, and if there are modifications.
 				if(this.next == null)
 					throw new NoSuchElementException();
 				if(this.subMap.listMap.modCount != this.expectedModCount)
 					throw new ConcurrentModificationException();
+				// Checks if its the first iteration, or if previous current was removed.
 				if(this.current != null)
 				{
 					this.next = this.current;
 					this.current = this.previous;
+					//Checks if its hitting the first entry or not.
 					if(this.index > 1)
 						this.previous = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + --this.index - 1);
 					else
@@ -5252,6 +5261,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 						--this.index;
 					}
 				}
+				// Current was null, no iteration but population of the current entry.
 				else this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index);
 				return this.current;
 			}
@@ -5265,6 +5275,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				current = null;
 				this.subMap.remove(this.index);
 				expectedModCount = this.subMap.listMap.modCount;
+				
+				//Re-populate next since next becomes current.
+				if(this.index < this.subMap.size() - 1)
+					this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index + 1);
+				else this.next = null;
 			}
 		}
 
