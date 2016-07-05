@@ -1,6 +1,12 @@
 ChangeLog - ListMap
 ---------------
 
+Version 1.2
+
+- Changed the (Sub)Map Iterator to be more index based for performance inducement.
+- Fixed Iterator index missmatch with the remove operator.
+- Fixed null Key/Value entries crash.
+
 Version 1.1
 
 - Optimized some loops

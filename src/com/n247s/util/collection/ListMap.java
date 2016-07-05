@@ -69,14 +69,14 @@ import com.n247s.util.collection.ListMap.SubMap;
 public class ListMap<K, V> implements Map<K, V>, Serializable
 {
 
-	private static final long							serialVersionUID	= 6227762186134413555L;
+	private static final long								serialVersionUID	= 6227762186134413555L;
 
-	protected transient ListMapEntrySet					entrySet;
-	protected transient ListMapKeySet					keySet;
-	protected transient ListMapValueSet					valueSet;
-	private transient List<WeakReference<SubMap<K, V>>>	subMapInstances;
+	protected transient ListMapEntrySet						entrySet;
+	protected transient ListMapKeySet						keySet;
+	protected transient ListMapValueSet						valueSet;
+	protected transient List<WeakReference<SubMap<K, V>>>	_subMapInstances;
 
-	private transient int								modCount;
+	protected transient int									_modCount;
 
 	/** Constructs a ListMap using the given List as backingList */
 	public ListMap(List<ListMapEntry<K, V>> backingList)
@@ -86,8 +86,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		else this.entrySet = new ListMapEntrySet();
 		this.keySet = new ListMapKeySet();
 		this.valueSet = new ListMapValueSet();
-		this.subMapInstances = new ArrayList<WeakReference<SubMap<K, V>>>();
-		this.modCount = 0;
+		this._subMapInstances = new ArrayList<WeakReference<SubMap<K, V>>>();
+		this._modCount = 0;
 	}
 
 	/** Constructs a ListMap using an ArrayList as backingList */
@@ -177,8 +177,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
 
 		this.entrySet.entryList.add(index, new ListMapEntry<K, V>(key, value));
-		this.commitEdit("Put", index);
-		this.modCount++;
+		this._commitEdit("Put", index);
+		this._modCount++;
 	}
 
 	/**
@@ -240,7 +240,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(entry.compareValue(oldValue))
 				{
 					entry.setValue(newValue);
-					this.modCount++;
+					this._modCount++;
 					return true;
 				}
 		}
@@ -266,7 +266,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(entry.compareKey(key))
 			{
 				V oldValue = entry.setValue(value);
-				this.modCount++;
+				this._modCount++;
 				return oldValue;
 			}
 		return null;
@@ -289,7 +289,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
 
 		V oldValue = this.entrySet.entryList.get(index).setValue(value);
-		this.modCount++;
+		this._modCount++;
 		return oldValue;
 	}
 
@@ -311,7 +311,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(entry.compareKey(key))
 			{
 				V oldValue = entry.setValue(value);
-				this.modCount++;
+				this._modCount++;
 				return oldValue;
 			}
 		return null;
@@ -350,7 +350,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(index < 0)
 			{
 				V oldValue = entry.setValue(value);
-				this.modCount++;
+				this._modCount++;
 				return oldValue;
 			}
 		}
@@ -378,7 +378,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(entry.compareValue(oldValue))
 				{
 					entry.setValue(newValue);
-					this.modCount++;
+					this._modCount++;
 					return true;
 				}
 		}
@@ -422,7 +422,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(index < 0)
 				{
 					entry.setValue(newValue);
-					this.modCount++;
+					this._modCount++;
 					return true;
 				}
 			}
@@ -447,7 +447,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
 
 		K oldKey = this.entrySet.entryList.get(index).setKey(newKey);
-		this.modCount++;
+		this._modCount++;
 		return oldKey;
 	}
 
@@ -466,7 +466,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(entry.compareKey(key))
 			{
 				entry.setKey(newKey);
-				this.modCount++;
+				this._modCount++;
 				return true;
 			}
 		return false;
@@ -505,7 +505,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(index < 0)
 			{
 				entry.setKey(newKey);
-				this.modCount++;
+				this._modCount++;
 				return true;
 			}
 		}
@@ -533,7 +533,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(entry.compareValue(value))
 				{
 					entry.setKey(newKey);
-					this.modCount++;
+					this._modCount++;
 					return true;
 				}
 		}
@@ -578,7 +578,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				if(index < 0)
 				{
 					entry.setKey(newKey);
-					this.modCount++;
+					this._modCount++;
 					return true;
 				}
 			}
@@ -598,8 +598,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			throw new IndexOutOfBoundsException(String.format("Index: %s, Size: %s", index, this.entrySet.size()));
 
 		this.entrySet.entryList.remove(index);
-		this.commitEdit("Remove", index);
-		this.modCount++;
+		this._commitEdit("Remove", index);
+		this._modCount++;
 	}
 
 	/**
@@ -783,8 +783,8 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public void clear()
 	{
 		this.entrySet.entryList.clear();
-		this.commitEdit("Clear", -1);
-		this.modCount++;
+		this._commitEdit("Clear", -1);
+		this._modCount++;
 	}
 
 	/**
@@ -1457,9 +1457,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	}
 
 	/** Used for internally for synchronizing subMaps */
-	protected void commitEdit(String editType, int index)
+	protected void _commitEdit(String editType, int index)
 	{
-		Iterator<WeakReference<SubMap<K, V>>> itt = this.subMapInstances.iterator();
+		Iterator<WeakReference<SubMap<K, V>>> itt = this._subMapInstances.iterator();
 		WeakReference<SubMap<K, V>> subMapRef;
 		SubMap<K, V> subMap;
 
@@ -2567,11 +2567,9 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 	public abstract class ListMapIterator
 	{
 
-		private int					expectedModCount;
-		private int					index;
-		private ListMapEntry<K, V>	current;
-		private ListMapEntry<K, V>	next;
-		private ListMapEntry<K, V>	previous;
+		protected ListMapEntry<K, V>	current;
+		protected int					index;
+		protected int					_expectedModCount;
 
 		/**
 		 * @param startIndex
@@ -2582,88 +2580,133 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			if(startIndex < 0 || startIndex > ListMap.this.entrySet.size())
 				throw new IndexOutOfBoundsException(String.format("StartIndex: %s, Size: %s", startIndex, entrySet.size()));
 
-			this.expectedModCount = modCount;
+			this._expectedModCount = ListMap.this._modCount;
 			this.index = startIndex;
 			this.current = null;
-			if(startIndex > 0)
-				this.previous = ListMap.this.entrySet.entryList.get(startIndex - 1);
-			if(startIndex < ListMap.this.entrySet.size() - 1)
-				this.next = ListMap.this.entrySet.entryList.get(startIndex + 1);
 		}
 
 		public ListMapIterator()
 		{
 			this(0);
 		}
-
-		public boolean hasNext()
-		{
-			return this.next != null;
-		}
-
+		
+		/** @return {@code true} if there is a previous entry, {@code false} otherwise. */
 		public boolean hasPrevious()
 		{
-			return this.previous != null;
+			return this.index > 0;
 		}
-
-		public int getIndex()
+		
+		/** @return The previous index. */
+		public int previousIndex()
+		{
+			return this.index - 1;
+		}
+		
+		/** @return {@code true} if the current element is not removed. */
+		public boolean hasCurrent()
+		{
+			return this.current != null;
+		}
+		
+		/** @return The current index (cursor position). */
+		public int currentIndex()
 		{
 			return this.index;
 		}
 
-		public ListMapEntry<K, V> getNextEntry()
+		/** @return {@code true} if there is a next Entry, {@code false} otherwise. */
+		public boolean hasNext()
 		{
-			if(this.next == null)
+			return this.index < entrySet.size() - 1;
+		}
+		
+		/** @return The next index. */
+		public int nextIndex()
+		{
+			return this.index + 1;
+		}
+
+		protected ListMapEntry<K, V> getNextEntry()
+		{
+			if(this.index >= ListMap.this.entrySet.size() - 1)
 				throw new NoSuchElementException();
-			if(modCount != this.expectedModCount)
-				throw new ConcurrentModificationException();
+			this.checkCoModifications();
+			
 			if(this.current != null)
-			{
-				this.previous = this.current;
-				this.current = this.next;
-				if(this.index < ListMap.this.entrySet.size() - 2)
-					this.next = ListMap.this.entrySet.entryList.get(++this.index + 1);
-				else
-				{
-					this.next = null;
-					++this.index;
-				}
-			}
+				this.current = ListMap.this.entrySet.entryList.get(++this.index);
 			else this.current = ListMap.this.entrySet.entryList.get(this.index);
 			return this.current;
 		}
-
-		public ListMapEntry<K, V> getPreviousEntry()
+		
+		protected ListMapEntry<K, V> peekForeward()
 		{
-			if(this.next == null)
+			if(this.index >= ListMap.this.entrySet.size() - 1)
 				throw new NoSuchElementException();
-			if(modCount != this.expectedModCount)
-				throw new ConcurrentModificationException();
+			this.checkCoModifications();
+			return ListMap.this.entrySet.entryList.get(this.index + 1);
+		}
+		
+		protected ListMapEntry<K, V> getCurrent()
+		{
+			if(current == null)
+				throw new IllegalStateException();
+			this.checkCoModifications();
+			return this.current;
+		}
+		
+		protected ListMapEntry<K, V> getPreviousEntry()
+		{
+			if(this.index <= 0)
+				throw new NoSuchElementException();
+			this.checkCoModifications();
+			
 			if(current != null)
-			{
-				this.next = this.current;
-				this.current = this.previous;
-				if(this.index > 1)
-					this.previous = ListMap.this.entrySet.entryList.get(--this.index - 1);
-				else
-				{
-					this.previous = null;
-					--this.index;
-				}
-			}
+				this.current = ListMap.this.entrySet.entryList.get(--this.index);
 			else this.current = ListMap.this.entrySet.entryList.get(this.index);
 			return this.current;
 		}
+		
+		protected ListMapEntry<K, V> peekBackwards()
+		{
+			if(this.index <= 0)
+				throw new NoSuchElementException();
+			this.checkCoModifications();
+			return ListMap.this.entrySet.entryList.get(this.index - 1);
+		}
+		
+		protected ListMapEntry<K, V> set(K key, V value)
+		{
+			this.checkCoModifications();
+			if(current == null)
+				throw new IllegalStateException();
+			return new ListMapEntry<K, V>(this.current.setKey(key), this.current.setValue(value));
+		}
+		
+		protected void add(K key, V value)
+		{
+			this.checkCoModifications();
+			ListMap.this.put(this.index, key, value);
+			this.index++;
+			this._expectedModCount = ListMap.this._modCount;
+		}
 
+		/** Removes the Entry at the current index/cursor. */
 		public void remove()
 		{
 			if(this.current == null)
 				throw new IllegalStateException();
-			if(modCount != expectedModCount)
-				throw new ConcurrentModificationException();
+			this.checkCoModifications();
+			
 			current = null;
 			ListMap.this.remove(this.index);
-			expectedModCount = modCount;
+			_expectedModCount = ListMap.this._modCount;
+		}
+
+		protected void checkCoModifications()
+		{
+			if(this._expectedModCount != ListMap.this._modCount
+					|| this.index < 0 || this.index >= ListMap.this.size())
+				throw new ConcurrentModificationException();
 		}
 	}
 
@@ -2672,10 +2715,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		/** @param startIndex The index where this iterator should start in this Map. */
 		public ListMapKeyIterator(int startIndex)	{super(startIndex);}
 		public ListMapKeyIterator()					{super();}
+		public K previous()		{return this.getPreviousEntry().getKey();}
+		public K peekPrevious()	{return this.peekBackwards().getKey();}
+		public K current()		{return this.getCurrent().getKey();}
 		@Override
-		public K next()		{return this.getNextEntry().getKey();}
-		public K previous()	{return this.getPreviousEntry().getKey();}
-		public K current()	{return super.current.getKey();}
+		public K next()			{return this.getNextEntry().getKey();}
+		public K peekNext()		{return this.peekForeward().getKey();}
+		public K set(K key)		{return this.set(key, this.getCurrent().getValue()).getKey();}
+		public void add(K key)	{this.add(key, null);}
 	}
 
 	public final class ListMapValueIterator extends ListMapIterator implements Iterator<V>
@@ -2683,10 +2730,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		/** @param startIndex The index where this iterator should start in this Map. */
 		public ListMapValueIterator(int startIndex)	{super(startIndex);}
 		public ListMapValueIterator()				{super();}
+		public V previous()		{return this.getPreviousEntry().getValue();}
+		public V peekPrevious()	{return this.peekBackwards().getValue();}
+		public V current()		{return this.getCurrent().getValue();}
 		@Override
-		public V next()		{return this.getNextEntry().getValue();}
-		public V previous()	{return this.getPreviousEntry().getValue();}
-		public V current()	{return super.current.getValue();}
+		public V next()			{return this.getNextEntry().getValue();}
+		public V peekNext()		{return this.peekForeward().getValue();}
+		public V set(V value)	{return this.set(this.getCurrent().getKey(), value).getValue();}
+		public void add(V value){this.add(null, value);}
 	}
 
 	public final class ListMapEntryIterator extends ListMapIterator implements Iterator<ListMapEntry<K, V>>
@@ -2694,10 +2745,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		/** @param startIndex The index where this iterator should start in this Map. */
 		public ListMapEntryIterator(int startIndex)	{super(startIndex);}
 		public ListMapEntryIterator()				{super();}
+		public ListMapEntry<K, V> previous()			{return this.getPreviousEntry();}
+		public ListMapEntry<K, V> peekPrevious()		{return this.peekBackwards();}
+		public ListMapEntry<K, V> current()				{return this.getCurrent();}
 		@Override
-		public ListMapEntry<K, V> next()		{return this.getNextEntry();}
-		public ListMapEntry<K, V> previous()	{return this.getPreviousEntry();}
-		public ListMapEntry<K, V> current()		{return super.current;}
+		public ListMapEntry<K, V> next()				{return this.getNextEntry();}
+		public ListMapEntry<K, V> peekNext()			{return this.peekForeward();}
+		@Override
+		public ListMapEntry<K, V> set(K key, V value)	{return super.set(key, value);}
+		@Override
+		public void add(K key, V value)					{super.add(key, value);}
 	}
 
 	public static abstract class ListMapSpliterator<E>
@@ -2705,13 +2762,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		protected final ListMap<?, ?>	listMap;
 		// current index, modified on advance/split
-		private int						index;
+		protected int					index;
 		// -1 if not used, then one past last index
-		private int						lowBoundery;
+		protected int					lowBoundery;
 		// -1 if not used; then first index inclusive
-		private int						highBoundery;
+		protected int					highBoundery;
 		// initialized when fence set
-		private int						expectedModCount;
+		protected int					_expectedModCount;
 
 		/** Create new spliterator covering the given range */
 		public ListMapSpliterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery)
@@ -2722,14 +2779,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			this.index = startIndex;
 			this.highBoundery = highBoundery;
 			this.lowBoundery = lowBoundery;
-			this.expectedModCount = listMap != null ? listMap.modCount : -1;
+			this._expectedModCount = listMap != null ? listMap._modCount : -1;
 		}
 
 		protected abstract Spliterator<E> getNewSpilterator(ListMap<?, ?> listMap, int startIndex, int lowBoundery, int highBoundery);
 
 		protected abstract E get(int index);
 
-		private void initBounds()
+		protected void _initBounds()
 		{
 			if(this.highBoundery < 0)
 			{
@@ -2737,7 +2794,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 					highBoundery = 0;
 				else
 				{
-					expectedModCount = this.listMap.modCount;
+					_expectedModCount = this.listMap._modCount;
 					highBoundery = this.listMap.size();
 				}
 			}
@@ -2750,7 +2807,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		public Spliterator<E> trySplit()
 		{
-			this.initBounds();
+			this._initBounds();
 			int mid = (this.lowBoundery + this.highBoundery) >>> 1;
 			if(this.lowBoundery >= mid)
 				return null;
@@ -2765,12 +2822,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			if(action == null)
 				throw new NullPointerException();
-			this.initBounds();
+			this._initBounds();
 			if(this.highBoundery < 0 ? this.index < this.listMap.size() : this.index < this.highBoundery)
 			{
 				E object = this.get(this.index++);
 				action.accept(object);
-				if(this.listMap.modCount != this.expectedModCount)
+				if(this.listMap._modCount != this._expectedModCount)
 					throw new ConcurrentModificationException();
 				return true;
 			}
@@ -2781,12 +2838,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			if(action == null)
 				throw new NullPointerException();
-			this.initBounds();
+			this._initBounds();
 			if(this.lowBoundery < 0 ? this.index > -1 : this.index >= this.lowBoundery)
 			{
 				E object = this.get(this.index--);
 				action.accept(object);
-				if(this.listMap.modCount != this.expectedModCount)
+				if(this.listMap._modCount != this._expectedModCount)
 					throw new ConcurrentModificationException();
 				return true;
 			}
@@ -2797,14 +2854,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			if(action == null)
 				throw new NullPointerException();
-			this.initBounds();
-			int expModCount = this.expectedModCount;
+			this._initBounds();
+			int expModCount = this._expectedModCount;
 			if(this.listMap != null)
 				if(this.index >= (this.lowBoundery < 0 ? 0 : this.lowBoundery) && index < (this.highBoundery < 0 ? this.listMap.size() : this.highBoundery))
 				{
 					for(int i = this.index; i < (this.highBoundery < 0 ? this.listMap.size() : this.highBoundery); ++i)
 						action.accept(this.get(i));
-					if(this.listMap.modCount == expModCount)
+					if(this.listMap._modCount == expModCount)
 						return;
 				}
 			throw new ConcurrentModificationException();
@@ -2814,14 +2871,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		{
 			if(action == null)
 				throw new NullPointerException();
-			this.initBounds();
-			int expModCount = this.expectedModCount;
+			this._initBounds();
+			int expModCount = this._expectedModCount;
 			if(this.listMap != null)
 				if(this.index >= (this.lowBoundery < 0 ? 0 : this.lowBoundery) && index < (this.highBoundery < 0 ? this.listMap.size() : this.highBoundery))
 				{
 					for(int i = this.index; i < (this.highBoundery < 0 ? this.listMap.size() : this.highBoundery); ++i)
 						action.accept(this.get(i));
-					if(this.listMap.modCount == expModCount)
+					if(this.listMap._modCount == expModCount)
 						return;
 				}
 			throw new ConcurrentModificationException();
@@ -2909,10 +2966,10 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 		private static final long	serialVersionUID	= 2220692614896016222L;
 
-		private ListMap<K, V>		listMap;
+		protected ListMap<K, V>		listMap;
 
-		private int					fromEntry, toEntry;
-		private boolean				fromStart, toEnd;
+		protected int				fromEntry, toEntry;
+		protected boolean			fromStart, toEnd;
 
 		/**
 		 * @param listMap
@@ -2953,7 +3010,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			this.fromEntry = fromStart ? -1 : fromKey;
 			this.toEnd = toEnd;
 			this.toEntry = toEnd ? -1 : toKey;
-			listMap.subMapInstances.add(new WeakReference<ListMap.SubMap<K, V>>(this));
+			listMap._subMapInstances.add(new WeakReference<ListMap.SubMap<K, V>>(this));
 		}
 
 		/**
@@ -4321,7 +4378,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public final class SubMapKeySet extends AbstractSet<K>
 		{
 
-			private SubMap<K, V>	subMap;
+			protected SubMap<K, V>	subMap;
 
 			public SubMapKeySet(SubMap<K, V> subMap)
 			{
@@ -4564,7 +4621,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public final class SubMapValueSet extends AbstractSet<V>
 		{
 
-			private SubMap<K, V>	subMap;
+			protected SubMap<K, V>	subMap;
 
 			public SubMapValueSet(SubMap<K, V> subMap)
 			{
@@ -4731,7 +4788,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public final class SubMapEntrySet extends AbstractSet<ListMapEntry<K, V>>
 		{
 
-			SubMap<K, V>	subMap;
+			protected SubMap<K, V>	subMap;
 
 			public SubMapEntrySet(SubMap<K, V> subMap)
 			{
@@ -5164,13 +5221,11 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 		public abstract class SubMapIterator
 		{
 
-			private SubMap<K, V>		subMap;
+			protected SubMap<K, V>			subMap;
 
-			private int					expectedModCount;
-			private int					index;
-			private ListMapEntry<K, V>	current;
-			private ListMapEntry<K, V>	next;
-			private ListMapEntry<K, V>	previous;
+			protected ListMapEntry<K, V>	current;
+			protected int					index;
+			protected int					_expectedModCount;
 
 			/**
 			 * @param startIndex
@@ -5183,103 +5238,132 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 					throw new IndexOutOfBoundsException(String.format("StartIndex: %s, Size: %s", startIndex, this.subMap.listMap.entrySet.size()));
 
 				this.subMap = subMap;
-				this.expectedModCount = this.subMap.listMap.modCount;
+				this._expectedModCount = this.subMap.listMap._modCount;
 				this.index = startIndex;
 				this.current = null;
-				//checks if a previousEntry fits.
-				if(startIndex > 0)
-					this.previous = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + startIndex - 1);
-				//checks if a nextEntry fits.
-				if(startIndex < this.subMap.size() - 1)
-					this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + startIndex + 1);
 			}
 
 			public SubMapIterator(SubMap<K, V> subMap)
 			{
 				this(0, subMap);
 			}
-
-			public boolean hasNext()
-			{
-				return this.next != null;
-			}
-
+			
+			/** @return {@code true} if there is a previous entry, {@code false} otherwise. */
 			public boolean hasPrevious()
 			{
-				return this.previous != null;
+				return this.index > 0;
 			}
-
-			public int getIndex()
+			
+			/** @return The previous index. */
+			public int previousIndex()
+			{
+				return this.index - 1;
+			}
+			
+			/** @return {@code true} if the current element is not removed. */
+			public boolean hasCurrent()
+			{
+				return this.current != null;
+			}
+			
+			/** @return The current index (cursor position). */
+			public int currentIndex()
 			{
 				return this.index;
 			}
 
-			public ListMapEntry<K, V> getNextEntry()
+			/** @return {@code true} if there is a next Entry, {@code false} otherwise. */
+			public boolean hasNext()
 			{
-				//Checks if it can advance, and if there are modifications.
-				if(this.next == null)
+				return this.index < this.subMap.size() - 1;
+			}
+			
+			/** @return The next index. */
+			public int nextIndex()
+			{
+				return this.index + 1;
+			}
+			
+			protected ListMapEntry<K, V> getNextEntry()
+			{
+				if(this.index >= this.subMap.size() - 1)
 					throw new NoSuchElementException();
-				if(this.subMap.listMap.modCount != this.expectedModCount)
-					throw new ConcurrentModificationException();
-				// Checks if its the first iteration, or if previous current was removed.
+				this.checkCoModifications();
+				
 				if(this.current != null)
-				{
-					this.previous = this.current;
-					this.current = this.next;
-					//Checks if its hitting the last entry or not.
-					if(this.index < this.subMap.size() - 2)
-						this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + ++this.index + 1);
-					else
-					{
-						this.next = null;
-						++this.index;
-					}
-				}
-				// Current was null, no iteration but population of the current entry.
+					this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + (++this.index));
 				else this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index);
 				return this.current;
 			}
-
-			public ListMapEntry<K, V> getPreviousEntry()
+			
+			protected ListMapEntry<K, V> peekForeward()
 			{
-				//Checks if it can withdraw, and if there are modifications.
-				if(this.next == null)
+				if(this.index >= this.subMap.size() - 1)
 					throw new NoSuchElementException();
-				if(this.subMap.listMap.modCount != this.expectedModCount)
-					throw new ConcurrentModificationException();
-				// Checks if its the first iteration, or if previous current was removed.
+				this.checkCoModifications();
+				return this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index + 1);
+			}
+			
+			protected ListMapEntry<K, V> getCurrent()
+			{
+				if(current == null)
+					throw new IllegalStateException();
+				this.checkCoModifications();
+				return this.current;
+			}
+			
+			protected ListMapEntry<K, V> getPreviousEntry()
+			{
+				if(this.index <= 0)
+					throw new NoSuchElementException();
+				this.checkCoModifications();
+				
 				if(this.current != null)
-				{
-					this.next = this.current;
-					this.current = this.previous;
-					//Checks if its hitting the first entry or not.
-					if(this.index > 1)
-						this.previous = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + --this.index - 1);
-					else
-					{
-						this.previous = null;
-						--this.index;
-					}
-				}
-				// Current was null, no iteration but population of the current entry.
+					this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + --this.index);
 				else this.current = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index);
 				return this.current;
+			}
+			
+			protected ListMapEntry<K, V> peekBackwards()
+			{
+				if(this.index <= 0)
+					throw new NoSuchElementException();
+				this.checkCoModifications();
+				return this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index - 1);
+			}
+			
+			protected ListMapEntry<K, V> set(K key, V value)
+			{
+				this.checkCoModifications();
+				if(current == null)
+					throw new IllegalStateException();
+				return new ListMapEntry<K, V>(this.current.setKey(key), this.current.setValue(value));
+			}
+			
+			protected void add(K key, V value)
+			{
+				this.checkCoModifications();
+				this.subMap.put(this.index, key, value);
+				this.index++;
+				this._expectedModCount = this.subMap.listMap._modCount;
 			}
 
 			public void remove()
 			{
 				if(this.current == null)
 					throw new IllegalStateException();
-				if(this.subMap.listMap.modCount != expectedModCount)
-					throw new ConcurrentModificationException();
-				current = null;
-				this.subMap.remove(this.index);
-				expectedModCount = this.subMap.listMap.modCount;
+				this.checkCoModifications();
 				
-				//Re-populate next since next becomes current.
-				if(this.index < this.subMap.size() - 1)
-					this.next = this.subMap.listMap.entrySet.entryList.get(this.subMap.fromEntry + this.index + 1);
-				else this.next = null;
+				this.current = null;
+				this.subMap.remove(this.index);
+				this._expectedModCount = this.subMap.listMap._modCount;
+			}
+
+			protected void checkCoModifications()
+			{
+				if(this._expectedModCount != this.subMap.listMap._modCount
+						|| this.index < 0 || this.index >= this.subMap.size())
+					throw new ConcurrentModificationException();
 			}
 		}
 
@@ -5288,10 +5372,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			/** @param startIndex The index where this iterator should start in this Map. */
 			public SubMapKeyIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
 			public SubMapKeyIterator(SubMap<K, V> subMap)					{super(subMap);}
+			public K previous()		{return this.getPreviousEntry().getKey();}
+			public K peekPrevious()	{return this.peekBackwards().getKey();}
+			public K current()		{return this.getCurrent().getKey();}
 			@Override
-			public K next()		{return this.getNextEntry().getKey();}
-			public K previous()	{return this.getPreviousEntry().getKey();}
-			public K current()	{return super.current.getKey();}
+			public K next()			{return this.getNextEntry().getKey();}
+			public K peekNext()		{return this.peekForeward().getKey();}
+			public K set(K key)		{return this.set(key, this.getCurrent().getValue()).getKey();}
+			public void add(K key)	{this.add(key, this.getCurrent().getValue());}
 		}
 
 		public final class SubMapValueIterator extends SubMapIterator implements Iterator<V>
@@ -5299,10 +5387,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			/** @param startIndex The index where this iterator should start in this Map. */
 			public SubMapValueIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
 			public SubMapValueIterator(SubMap<K, V> subMap)					{super(subMap);}
+			public V previous()		{return this.getPreviousEntry().getValue();}
+			public V peekPrevious()	{return this.peekBackwards().getValue();}
+			public V current()		{return this.getCurrent().getValue();}
 			@Override
-			public V next()		{return this.getNextEntry().getValue();}
-			public V previous()	{return this.getPreviousEntry().getValue();}
-			public V current()	{return super.current.getValue();}
+			public V next()			{return this.getNextEntry().getValue();}
+			public V peekNext()		{return this.peekForeward().getValue();}
+			public V set(V value)	{return this.set(this.getCurrent().getKey(), value).getValue();}
+			public void add(V value){this.add(this.getCurrent().getKey(), value);}
 		}
 
 		public final class SubMapEntryIterator extends SubMapIterator implements Iterator<ListMapEntry<K, V>>
@@ -5310,10 +5402,16 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			/** @param startIndex The index where this iterator should start in this Map. */
 			public SubMapEntryIterator(int startIndex, SubMap<K, V> subMap)	{super(startIndex, subMap);}
 			public SubMapEntryIterator(SubMap<K, V> subMap)					{super(subMap);}
+			public ListMapEntry<K, V> previous()			{return this.getPreviousEntry();}
+			public ListMapEntry<K, V> peekPrevious()		{return this.peekBackwards();}
+			public ListMapEntry<K, V> current()				{return this.getCurrent();}
 			@Override
-			public ListMapEntry<K, V> next()		{return this.getNextEntry();}
-			public ListMapEntry<K, V> previous()	{return this.getPreviousEntry();}
-			public ListMapEntry<K, V> current()		{return super.current;}
+			public ListMapEntry<K, V> next()				{return this.getNextEntry();}
+			public ListMapEntry<K, V> peekNext()			{return this.peekForeward();}
+			@Override
+			public ListMapEntry<K, V> set(K key, V value)	{return super.set(key, value);}
+			@Override
+			public void add(K key, V value)					{super.add(key, value);}
 		}
 
 		public static abstract class SubMapSpliterator<E>
@@ -5321,13 +5419,13 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			protected final SubMap<?, ?>	subMap;
 			// current index, modified on advance/split
-			private int						index;
+			protected int					index;
 			// -1 if not used; then one past last index
-			private int						lowBoundery;
+			protected int					lowBoundery;
 			// -1 if not used; then first index inclusive
-			private int						highBoundery;
+			protected int					highBoundery;
 			// initialized when fence set
-			private int						expectedModCount;
+			protected int					_expectedModCount;
 
 			/** Create new spliterator covering the given range */
 			public SubMapSpliterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery)
@@ -5338,14 +5436,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 				this.index = startIndex;
 				this.highBoundery = highBoundery;
 				this.lowBoundery = lowBoundery;
-				this.expectedModCount = subMap != null ? subMap.listMap.modCount : -1;
+				this._expectedModCount = subMap != null ? subMap.listMap._modCount : -1;
 			}
 
 			protected abstract Spliterator<E> getNewSpilterator(SubMap<?, ?> subMap, int startIndex, int lowBoundery, int highBoundery);
 
 			protected abstract E get(int index);
 
-			private void initBounds()
+			private void _initBounds()
 			{
 				if(this.highBoundery < 0)
 				{
@@ -5353,7 +5451,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 						highBoundery = -1;
 					else
 					{
-						expectedModCount = this.subMap.listMap.modCount;
+						_expectedModCount = this.subMap.listMap._modCount;
 						highBoundery = this.subMap.size();
 					}
 				}
@@ -5366,7 +5464,7 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 
 			public Spliterator<E> trySplit()
 			{
-				this.initBounds();
+				this._initBounds();
 				int mid = (this.lowBoundery + this.highBoundery) >>> 1;
 				Spliterator<E> split = (this.lowBoundery >= mid) ? null : getNewSpilterator(this.subMap, this.index < mid ? this.index : mid, this.lowBoundery, mid);
 				if(this.index < mid)
@@ -5379,12 +5477,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				if(action == null)
 					throw new NullPointerException();
-				this.initBounds();
+				this._initBounds();
 				if(this.highBoundery < 0 ? this.index < this.subMap.size() : this.index < this.highBoundery)
 				{
 					E object = this.get(this.index++);
 					action.accept(object);
-					if(this.subMap.listMap.modCount != this.expectedModCount)
+					if(this.subMap.listMap._modCount != this._expectedModCount)
 						throw new ConcurrentModificationException();
 					return true;
 				}
@@ -5395,12 +5493,12 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				if(action == null)
 					throw new NullPointerException();
-				this.initBounds();
+				this._initBounds();
 				if(this.lowBoundery < 0 ? this.index > -1 : this.index >= this.lowBoundery)
 				{
 					E object = this.get(this.index--);
 					action.accept(object);
-					if(this.subMap.listMap.modCount != this.expectedModCount)
+					if(this.subMap.listMap._modCount != this._expectedModCount)
 						throw new ConcurrentModificationException();
 					return true;
 				}
@@ -5411,14 +5509,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				if(action == null)
 					throw new NullPointerException();
-				this.initBounds();
-				int expModCount = this.expectedModCount;
+				this._initBounds();
+				int expModCount = this._expectedModCount;
 				if(this.subMap != null)
 					if(this.index >= (this.lowBoundery < 0 ? 0 : this.lowBoundery) && index < (this.highBoundery < 0 ? this.subMap.size() : this.highBoundery))
 					{
 						for(int i = this.index; i < (this.highBoundery < 0 ? this.subMap.size() : this.highBoundery); ++i)
 							action.accept(this.get(i));
-						if(this.subMap.listMap.modCount == expModCount)
+						if(this.subMap.listMap._modCount == expModCount)
 							return;
 					}
 				throw new ConcurrentModificationException();
@@ -5428,14 +5526,14 @@ public class ListMap<K, V> implements Map<K, V>, Serializable
 			{
 				if(action == null)
 					throw new NullPointerException();
-				this.initBounds();
-				int expModCount = this.expectedModCount;
+				this._initBounds();
+				int expModCount = this._expectedModCount;
 				if(this.subMap != null)
 					if(this.index >= (this.lowBoundery < 0 ? 0 : this.lowBoundery) && index < (this.highBoundery < 0 ? this.subMap.size() : this.highBoundery))
 					{
 						for(int i = this.index; i < (this.highBoundery < 0 ? this.subMap.size() : this.highBoundery); ++i)
 							action.accept(this.get(i));
-						if(this.subMap.listMap.modCount == expModCount)
+						if(this.subMap.listMap._modCount == expModCount)
 							return;
 					}
 				throw new ConcurrentModificationException();
