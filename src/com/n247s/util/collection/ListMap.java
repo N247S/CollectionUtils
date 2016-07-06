@@ -64,7 +64,7 @@ import com.n247s.util.collection.ListMap.SubMap;
  *            the type of mapped values
  * 
  * @author N247S
- * @version 1.1
+ * @version 1.2
  */
 public class ListMap<K, V> implements Map<K, V>, Serializable
 {
